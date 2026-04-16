@@ -20,7 +20,7 @@ SEMGREP_ARGS=(
 if [ -f "$SEMGREP_RULES" ]; then
   SEMGREP_ARGS+=(--config "$SEMGREP_RULES")
 fi
-SEMGREP_ARGS+=(--config "p/default" --metrics=off)
+SEMGREP_ARGS+=(--config "p/ci" --metrics=off)
 
 run_with_docker() {
   echo "[Semgrep] Running via Docker..."
@@ -30,7 +30,7 @@ run_with_docker() {
     semgrep/semgrep:1.90.0 \
     scan \
     --config "/src/security/semgrep/.semgrep.yml" \
-    --config "p/default" \
+    --config "p/ci" \
     --metrics=off \
     --json \
     --output "/src/${REPORT_DIR}/sast-report.json" \

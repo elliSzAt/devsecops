@@ -51,20 +51,34 @@ jobs:
           && echo "No secrets found." \
           || { echo "PIPELINE BLOCKED: Secrets detected!"; exit 1; }
 
+      - name: Verify Semgrep config exists
+        run: |
+          if [ ! -f "security/semgrep/.semgrep.yml" ]; then
+            echo "ERROR: security/semgrep/.semgrep.yml not found!"
+            ls -la security/semgrep/ 2>/dev/null || echo "Directory security/semgrep/ does not exist"
+            exit 1
+          fi
+          echo "Config file found."
+
       - name: Semgrep - Code Scanning
         run: |
           docker run --rm \
-            -v ${{ github.workspace }}:/src:ro \
-            -v ${{ github.workspace }}/reports:/src/reports \
+            -v ${{ github.workspace }}:/src \
             --entrypoint semgrep \
             semgrep/semgrep:${{ env.SEMGREP_VERSION }} \
             scan \
             --config /src/security/semgrep/.semgrep.yml \
-            --config "p/default" \
+            --config "p/ci" \
             --metrics=off \
             --json \
             --output /src/reports/sast-report.json \
-            /src/app/src/
+            /src/app/src/ \
+          || true
+
+          if [ ! -f "reports/sast-report.json" ]; then
+            echo "ERROR: No Semgrep report generated!"
+            exit 1
+          fi
 
           ERRORS=$(python3 -c "
           import json

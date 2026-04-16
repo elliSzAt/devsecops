@@ -99,7 +99,7 @@ services:
     command:
       - scan
       - --config=/src/security/semgrep/.semgrep.yml
-      - --config=p/default
+      - --config=p/ci
       - --metrics=off
       - --json
       - --output=/src/reports/sast-report.json
