@@ -14,7 +14,7 @@ env:
   APP_DIR: ./app
   REPORT_DIR: ./reports
   IMAGE_NAME: devsecops-app
-  REGISTRY: ghcr.io/${{ github.repository_owner }}
+  REGISTRY: ghcr.io
   DEPLOY_COMPOSE_FILE: docker-compose.yml
   APP_URL: http://localhost:3000
   # Pinned tool versions - tránh supply chain attack qua :latest
@@ -207,8 +207,9 @@ jobs:
         id: meta
         run: |
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "image_tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "image_full=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "image_full=${{ env.REGISTRY }}/${OWNER}/${{ env.IMAGE_NAME }}:${SHORT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Build Docker image
         run: |
@@ -302,10 +303,12 @@ jobs:
           IMAGE_TAG: ${{ needs.build-image.outputs.image_tag }}
           IMAGE_FULL: ${{ needs.build-image.outputs.image_full }}
         run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          LATEST="${{ env.REGISTRY }}/${OWNER}/${{ env.IMAGE_NAME }}:latest"
           docker tag ${{ env.IMAGE_NAME }}:${IMAGE_TAG} ${IMAGE_FULL}
-          docker tag ${{ env.IMAGE_NAME }}:${IMAGE_TAG} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker tag ${{ env.IMAGE_NAME }}:${IMAGE_TAG} ${LATEST}
           docker push ${IMAGE_FULL}
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker push ${LATEST}
           echo "Pushed: ${IMAGE_FULL}"
 
   # ================================================================
