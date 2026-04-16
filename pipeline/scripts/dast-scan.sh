@@ -36,7 +36,7 @@ if [ -n "$APP_NETWORK" ]; then
 fi
 
 docker run "${ZAP_DOCKER_ARGS[@]}" \
-  ghcr.io/zaproxy/zaproxy:stable \
+  ghcr.io/zaproxy/zaproxy:2.16.0 \
   zap-baseline.py \
   -t "${TARGET_URL}" \
   -J dast-report.json \

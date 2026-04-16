@@ -26,7 +26,7 @@ run_with_docker() {
   echo "[Semgrep] Running via Docker..."
   docker run --rm \
     -v "${WORKSPACE}:/src" \
-    returntocorp/semgrep:latest \
+    semgrep/semgrep:1.90.0 \
     semgrep scan \
     --config "/src/security/semgrep/.semgrep.yml" \
     --config "p/owasp-top-ten" \

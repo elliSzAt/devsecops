@@ -15,7 +15,7 @@ run_with_docker() {
   echo "[Gitleaks] Running via Docker..."
   docker run --rm \
     -v "${WORKSPACE}:/src" \
-    zricethezav/gitleaks:latest \
+    zricethezav/gitleaks:v8.18.2 \
     detect \
     --source="/src" \
     --report-format=json \

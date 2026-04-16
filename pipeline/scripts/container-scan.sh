@@ -35,7 +35,7 @@ run_trivy_docker() {
     -v "$(pwd)/${REPORT_DIR}:/output" \
     -v "$(pwd)/.trivyignore:/root/.trivyignore:ro" \
     -v "$(pwd)/trivy.yaml:/root/trivy.yaml:ro" \
-    aquasec/trivy:latest \
+    aquasec/trivy:0.58.0 \
     image \
     --format json \
     --output "/output/container-scan-report.json" \

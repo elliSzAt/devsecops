@@ -70,7 +70,7 @@ services:
   # docker compose -f docker-compose.security.yml up gitleaks-scan
   # ----------------------------------------------------------
   gitleaks-scan:
-    image: zricethezav/gitleaks:latest
+    image: zricethezav/gitleaks:v8.18.2
     container_name: devsecops-gitleaks
     volumes:
       - .:/src:ro
@@ -89,7 +89,7 @@ services:
   # docker compose -f docker-compose.security.yml up semgrep-scan
   # ----------------------------------------------------------
   semgrep-scan:
-    image: returntocorp/semgrep:latest
+    image: semgrep/semgrep:1.90.0
     container_name: devsecops-semgrep
     working_dir: /src
     volumes:
@@ -126,7 +126,7 @@ services:
   # Yêu cầu: chạy npm-build trước để có node_modules
   # ----------------------------------------------------------
   dependency-check:
-    image: owasp/dependency-check:latest
+    image: owasp/dependency-check:11.0.0
     container_name: devsecops-dependency-check
     volumes:
       - ./app:/src:ro
@@ -157,7 +157,7 @@ services:
   # Yêu cầu: image devsecops-app:latest đã được build
   # ----------------------------------------------------------
   trivy-scan:
-    image: aquasec/trivy:latest
+    image: aquasec/trivy:0.58.0
     container_name: devsecops-trivy
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -180,7 +180,7 @@ services:
   # Yêu cầu: app đang chạy trên localhost:3000
   # ----------------------------------------------------------
   zap-scan:
-    image: ghcr.io/zaproxy/zaproxy:stable
+    image: ghcr.io/zaproxy/zaproxy:2.16.0
     container_name: devsecops-zap
     volumes:
       - ./reports:/zap/wrk:rw

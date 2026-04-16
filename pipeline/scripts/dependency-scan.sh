@@ -27,7 +27,7 @@ run_with_docker() {
     -v "${APP_DIR}:/src:ro" \
     -v "$(cd "${REPORT_DIR}" && pwd):/report" \
     -v "${DC_DATA_DIR}:/usr/share/dependency-check/data" \
-    owasp/dependency-check:latest \
+    owasp/dependency-check:11.0.0 \
     --scan /src \
     --format JSON \
     --format HTML \

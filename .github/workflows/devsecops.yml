@@ -13,11 +13,17 @@ env:
   REGISTRY: ${{ vars.REGISTRY_URL || 'localhost:5000' }}
   DEPLOY_COMPOSE_FILE: docker-compose.yml
   APP_URL: http://localhost:3000
+  # Pinned tool versions - tránh supply chain attack qua :latest
+  GITLEAKS_VERSION: "v8.18.2"
+  SEMGREP_VERSION: "1.90.0"
+  DC_VERSION: "11.0.0"
+  TRIVY_VERSION: "0.58.0"
+  ZAP_VERSION: "2.16.0"
 
 jobs:
   # ================================================================
   # STAGE 1: SAST - Gitleaks + Semgrep
-  # Fail pipeline if: secrets found OR High/Critical code issues
+  # Chạy trực tiếp Docker image, cache trên self-hosted runner
   # ================================================================
   sast:
     name: "SAST (Gitleaks + Semgrep)"
@@ -32,10 +38,46 @@ jobs:
         run: mkdir -p ${{ env.REPORT_DIR }}
 
       - name: Gitleaks - Secret Scanning
-        run: bash pipeline/scripts/gitleaks-scan.sh
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/src:ro \
+            -v ${{ github.workspace }}/reports:/src/reports \
+            zricethezav/gitleaks:${{ env.GITLEAKS_VERSION }} \
+            detect \
+            --source=/src \
+            --report-format=json \
+            --report-path=/src/reports/gitleaks-report.json \
+            --exit-code=1 \
+          && echo "No secrets found." \
+          || { echo "PIPELINE BLOCKED: Secrets detected!"; exit 1; }
 
       - name: Semgrep - Code Scanning
-        run: bash pipeline/scripts/sast-scan.sh
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/src:ro \
+            -v ${{ github.workspace }}/reports:/src/reports \
+            semgrep/semgrep:${{ env.SEMGREP_VERSION }} \
+            semgrep scan \
+            --config /src/security/semgrep/.semgrep.yml \
+            --config "p/owasp-top-ten" \
+            --config "p/nodejs" \
+            --json \
+            --output /src/reports/sast-report.json \
+            /src/app/src/
+
+          ERRORS=$(python3 -c "
+          import json
+          with open('reports/sast-report.json') as f:
+              data = json.load(f)
+              errors = [r for r in data.get('results', []) if r.get('extra', {}).get('severity', '') == 'ERROR']
+              print(len(errors))
+          " 2>/dev/null || echo "0")
+
+          echo "High/Critical findings: ${ERRORS}"
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "PIPELINE BLOCKED: ${ERRORS} High/Critical SAST findings!"
+            exit 1
+          fi
 
       - name: Upload SAST Reports
         if: always()
@@ -49,8 +91,7 @@ jobs:
 
   # ================================================================
   # STAGE 2: Build, Test & Dependency Scan (OWASP Dependency-Check)
-  # npm ci -> node_modules -> dependency-check scans that folder
-  # Fail pipeline if: High/Critical vulnerabilities in dependencies
+  # npm ci -> node_modules -> dependency-check scan folder đó
   # ================================================================
   build-and-test:
     name: "Build, Test & Dependency Scan"
@@ -79,9 +120,49 @@ jobs:
         run: mkdir -p ${{ env.REPORT_DIR }}
 
       - name: OWASP Dependency-Check (scan node_modules)
-        env:
-          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-        run: bash pipeline/scripts/dependency-scan.sh
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/app:/src:ro \
+            -v ${{ github.workspace }}/reports:/report \
+            -v devsecops-dc-data:/usr/share/dependency-check/data \
+            owasp/dependency-check:${{ env.DC_VERSION }} \
+            --scan /src \
+            --format JSON \
+            --format HTML \
+            --out /report \
+            --project "devsecops-app" \
+            --disableAssembly \
+            --nodeAuditSkipDevDependencies \
+            --nvdApiKey "${{ secrets.NVD_API_KEY }}" \
+          || true
+
+          DC_REPORT="reports/dependency-check-report.json"
+          if [ ! -f "$DC_REPORT" ]; then
+            echo "ERROR: No Dependency-Check report generated!"
+            exit 1
+          fi
+
+          RESULT=$(python3 -c "
+          import json
+          with open('${DC_REPORT}') as f:
+              data = json.load(f)
+              c = h = 0
+              for dep in data.get('dependencies', []):
+                  for v in dep.get('vulnerabilities', []):
+                      sev = v.get('severity', '').upper()
+                      if sev == 'CRITICAL': c += 1
+                      elif sev == 'HIGH': h += 1
+              print(f'{c} {h}')
+          ")
+
+          CRITICAL=$(echo "$RESULT" | awk '{print $1}')
+          HIGH=$(echo "$RESULT" | awk '{print $2}')
+          echo "Critical: ${CRITICAL}, High: ${HIGH}"
+
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+            echo "PIPELINE BLOCKED: ${CRITICAL} Critical + ${HIGH} High dependency vulnerabilities!"
+            exit 1
+          fi
 
       - name: Upload Dependency-Check Reports
         if: always()
@@ -127,7 +208,7 @@ jobs:
 
   # ================================================================
   # STAGE 4: Container Image Scan (Trivy)
-  # Fail pipeline if: High/Critical vulnerabilities in image
+  # Chạy trực tiếp Trivy Docker image
   # ================================================================
   scan-image:
     name: "Container Scan (Trivy)"
@@ -141,9 +222,40 @@ jobs:
         run: mkdir -p ${{ env.REPORT_DIR }}
 
       - name: Trivy Image Scan
-        env:
-          IMAGE_TAG: ${{ needs.build-image.outputs.image_tag }}
-        run: bash pipeline/scripts/container-scan.sh
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v ${{ github.workspace }}/reports:/output \
+            -v ${{ github.workspace }}/.trivyignore:/root/.trivyignore:ro \
+            aquasec/trivy:${{ env.TRIVY_VERSION }} \
+            image \
+            --format json \
+            --output /output/container-scan-report.json \
+            --severity CRITICAL,HIGH,MEDIUM \
+            --ignorefile /root/.trivyignore \
+            ${{ env.IMAGE_NAME }}:${{ needs.build-image.outputs.image_tag }}
+
+          RESULT=$(python3 -c "
+          import json
+          with open('reports/container-scan-report.json') as f:
+              data = json.load(f)
+              c = h = 0
+              for r in data.get('Results', []):
+                  for v in r.get('Vulnerabilities', []):
+                      sev = v.get('Severity', '').upper()
+                      if sev == 'CRITICAL': c += 1
+                      elif sev == 'HIGH': h += 1
+              print(f'{c} {h}')
+          ")
+
+          CRITICAL=$(echo "$RESULT" | awk '{print $1}')
+          HIGH=$(echo "$RESULT" | awk '{print $2}')
+          echo "Critical: ${CRITICAL}, High: ${HIGH}"
+
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+            echo "PIPELINE BLOCKED: ${CRITICAL} Critical + ${HIGH} High in container image!"
+            exit 1
+          fi
 
       - name: Upload Container Scan Report
         if: always()
@@ -155,7 +267,6 @@ jobs:
 
   # ================================================================
   # STAGE 5: Push Image to Registry
-  # Only runs if container scan passes (no High/Critical)
   # ================================================================
   push-image:
     name: "Push Image to Registry"
@@ -222,21 +333,62 @@ jobs:
 
   # ================================================================
   # STAGE 7: DAST Scan (OWASP ZAP)
-  # Fail pipeline if: High-risk vulnerabilities found -> trigger rollback
+  # Chạy trực tiếp ZAP Docker image
   # ================================================================
   dast:
     name: "DAST Scan (OWASP ZAP)"
     runs-on: self-hosted
     needs: deploy
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Create reports directory
         run: mkdir -p ${{ env.REPORT_DIR }}
 
-      - name: OWASP ZAP Scan
-        run: bash pipeline/scripts/dast-scan.sh
+      - name: Resolve app container IP
+        id: app-info
+        run: |
+          APP_IP=$(docker inspect devsecops-app --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null || echo "")
+          APP_NETWORK=$(docker inspect devsecops-app --format='{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' 2>/dev/null || echo "")
+          if [ -n "$APP_IP" ]; then
+            echo "target=http://${APP_IP}:3000" >> $GITHUB_OUTPUT
+            echo "network=--network ${APP_NETWORK}" >> $GITHUB_OUTPUT
+          else
+            echo "target=${{ env.APP_URL }}" >> $GITHUB_OUTPUT
+            echo "network=" >> $GITHUB_OUTPUT
+          fi
+          echo "Target: $(cat $GITHUB_OUTPUT | grep target)"
+
+      - name: OWASP ZAP Baseline Scan
+        run: |
+          docker run --rm \
+            ${{ steps.app-info.outputs.network }} \
+            -v ${{ github.workspace }}/reports:/zap/wrk:rw \
+            ghcr.io/zaproxy/zaproxy:${{ env.ZAP_VERSION }} \
+            zap-baseline.py \
+            -t ${{ steps.app-info.outputs.target }} \
+            -J dast-report.json \
+            -r dast-report.html \
+            -l WARN \
+            -I \
+          || true
+
+          if [ ! -f "reports/dast-report.json" ]; then
+            echo "ERROR: No DAST report generated!"
+            exit 1
+          fi
+
+          HIGH=$(python3 -c "
+          import json
+          with open('reports/dast-report.json') as f:
+              data = json.load(f)
+              high = sum(1 for s in data.get('site', []) for a in s.get('alerts', []) if a.get('riskdesc', '').startswith('High'))
+              print(high)
+          " 2>/dev/null || echo "0")
+
+          echo "High-risk alerts: ${HIGH}"
+          if [ "$HIGH" -gt 0 ]; then
+            echo "PIPELINE BLOCKED: ${HIGH} High-risk vulnerabilities! Triggering ROLLBACK."
+            exit 1
+          fi
 
       - name: Upload DAST Report
         if: always()
@@ -249,7 +401,7 @@ jobs:
           retention-days: 30
 
   # ================================================================
-  # STAGE 8: Rollback (only if DAST fails = High-risk bugs found)
+  # STAGE 8: Rollback (only if DAST fails)
   # ================================================================
   rollback:
     name: "Rollback Deployment"
