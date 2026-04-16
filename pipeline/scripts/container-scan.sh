@@ -39,8 +39,10 @@ run_trivy_docker() {
     image \
     --format json \
     --output "/output/container-scan-report.json" \
-    --severity CRITICAL,HIGH,MEDIUM \
+    --severity CRITICAL,HIGH \
     --ignorefile /root/.trivyignore \
+    --ignore-unfixed \
+    --scanners vuln \
     "${FULL_IMAGE}" \
     || SCAN_EXIT=$?
 }

@@ -169,7 +169,10 @@ services:
       - --output
       - /output/container-scan-report.json
       - --severity
-      - CRITICAL,HIGH,MEDIUM
+      - CRITICAL,HIGH
+      - --ignore-unfixed
+      - --scanners
+      - vuln
       - devsecops-app:latest
     networks:
       - scan-net

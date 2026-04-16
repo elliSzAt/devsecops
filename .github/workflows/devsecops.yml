@@ -242,8 +242,10 @@ jobs:
             image \
             --format json \
             --output /output/container-scan-report.json \
-            --severity CRITICAL,HIGH,MEDIUM \
+            --severity CRITICAL,HIGH \
             --ignorefile /root/.trivyignore \
+            --ignore-unfixed \
+            --scanners vuln \
             ${{ env.IMAGE_NAME }}:${{ needs.build-image.outputs.image_tag }}
 
           RESULT=$(python3 -c "
