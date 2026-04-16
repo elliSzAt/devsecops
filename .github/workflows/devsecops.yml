@@ -146,8 +146,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}/app:/src:ro \
             -v ${{ github.workspace }}/reports:/report \
-            -v devsecops-dc-data:/usr/share/dependency-check/data \
-            owasp/dependency-check:${{ env.DC_VERSION }} \
+            owasp/dependency-check-action:${{ env.DC_VERSION }} \
             --scan /src \
             --format JSON \
             --format HTML \
@@ -155,7 +154,7 @@ jobs:
             --project "devsecops-app" \
             --disableAssembly \
             --nodeAuditSkipDevDependencies \
-            --nvdApiKey "${{ secrets.NVD_API_KEY }}" \
+            --noupdate \
           || true
 
           DC_REPORT="reports/dependency-check-report.json"

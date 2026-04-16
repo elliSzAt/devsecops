@@ -26,8 +26,7 @@ run_with_docker() {
   docker run --rm \
     -v "${APP_DIR}:/src:ro" \
     -v "$(cd "${REPORT_DIR}" && pwd):/report" \
-    -v "${DC_DATA_DIR}:/usr/share/dependency-check/data" \
-    owasp/dependency-check:11.0.0 \
+    owasp/dependency-check-action:11.0.0 \
     --scan /src \
     --format JSON \
     --format HTML \
@@ -35,7 +34,7 @@ run_with_docker() {
     --project "devsecops-app" \
     --disableAssembly \
     --nodeAuditSkipDevDependencies \
-    --nvdApiKey "${NVD_API_KEY:-}" \
+    --noupdate \
     || true
 }
 

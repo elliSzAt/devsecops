@@ -126,12 +126,11 @@ services:
   # Yêu cầu: chạy npm-build trước để có node_modules
   # ----------------------------------------------------------
   dependency-check:
-    image: owasp/dependency-check:11.0.0
+    image: owasp/dependency-check-action:11.0.0
     container_name: devsecops-dependency-check
     volumes:
       - ./app:/src:ro
       - ./reports:/report
-      - dc-data:/usr/share/dependency-check/data
     command:
       - --scan
       - /src
@@ -145,6 +144,7 @@ services:
       - devsecops-app
       - --disableAssembly
       - --nodeAuditSkipDevDependencies
+      - --noupdate
     depends_on:
       npm-build:
         condition: service_completed_successfully
@@ -199,10 +199,6 @@ services:
       - "host.docker.internal:host-gateway"
     networks:
       - scan-net
-
-volumes:
-  dc-data:
-    name: devsecops-dependency-check-data
 
 networks:
   scan-net:
