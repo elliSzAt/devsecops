@@ -26,7 +26,7 @@ run_with_docker() {
   docker run --rm \
     -v "${APP_DIR}:/src:ro" \
     -v "$(cd "${REPORT_DIR}" && pwd):/report" \
-    owasp/dependency-check-action:11.0.0 \
+    owasp/dependency-check:11.0.0 \
     --scan /src \
     --format JSON \
     --format HTML \
