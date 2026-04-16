@@ -20,17 +20,18 @@ SEMGREP_ARGS=(
 if [ -f "$SEMGREP_RULES" ]; then
   SEMGREP_ARGS+=(--config "$SEMGREP_RULES")
 fi
-SEMGREP_ARGS+=(--config "p/owasp-top-ten" --config "p/nodejs")
+SEMGREP_ARGS+=(--config "p/default" --metrics=off)
 
 run_with_docker() {
   echo "[Semgrep] Running via Docker..."
   docker run --rm \
     -v "${WORKSPACE}:/src" \
+    --entrypoint semgrep \
     semgrep/semgrep:1.90.0 \
-    semgrep scan \
+    scan \
     --config "/src/security/semgrep/.semgrep.yml" \
-    --config "p/owasp-top-ten" \
-    --config "p/nodejs" \
+    --config "p/default" \
+    --metrics=off \
     --json \
     --output "/src/${REPORT_DIR}/sast-report.json" \
     /src/app/src/ \

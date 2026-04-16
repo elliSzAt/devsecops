@@ -56,11 +56,12 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/src:ro \
             -v ${{ github.workspace }}/reports:/src/reports \
+            --entrypoint semgrep \
             semgrep/semgrep:${{ env.SEMGREP_VERSION }} \
-            semgrep scan \
+            scan \
             --config /src/security/semgrep/.semgrep.yml \
-            --config "p/owasp-top-ten" \
-            --config "p/nodejs" \
+            --config "p/default" \
+            --metrics=off \
             --json \
             --output /src/reports/sast-report.json \
             /src/app/src/

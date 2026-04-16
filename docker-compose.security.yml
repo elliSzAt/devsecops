@@ -99,8 +99,8 @@ services:
     command:
       - scan
       - --config=/src/security/semgrep/.semgrep.yml
-      - --config=p/owasp-top-ten
-      - --config=p/nodejs
+      - --config=p/default
+      - --metrics=off
       - --json
       - --output=/src/reports/sast-report.json
       - /src/app/src/
