@@ -10,7 +10,7 @@ version: "3.8"
 # Cách chạy:
 #   Toàn bộ pipeline:     docker compose -f docker-compose.security.yml up pipeline-runner
 #   Chỉ SAST:             docker compose -f docker-compose.security.yml up gitleaks-scan semgrep-scan
-#   Chỉ SCA:              docker compose -f docker-compose.security.yml up dependency-check
+#   Chỉ SCA:              docker compose -f docker-compose.security.yml up dependency-scan
 #   Chỉ Container scan:   docker compose -f docker-compose.security.yml up trivy-scan
 #   Chỉ DAST:             docker compose -f docker-compose.security.yml up zap-scan
 #   Xem reports:          ls -la reports/
@@ -49,7 +49,7 @@ services:
         docker compose -f docker-compose.security.yml up --abort-on-container-exit npm-build || true
 
         echo "━━ [4/6] SCA: Dependency-Check ━━"
-        docker compose -f docker-compose.security.yml up --abort-on-container-exit dependency-check || true
+        docker compose -f docker-compose.security.yml up --abort-on-container-exit dependency-scan || true
 
         echo "━━ [5/6] Container Scan: Trivy ━━"
         docker compose -f docker-compose.security.yml up --abort-on-container-exit trivy-scan || true
@@ -121,30 +121,27 @@ services:
       - scan-net
 
   # ----------------------------------------------------------
-  # SCA: OWASP Dependency-Check (scan node_modules)
-  # docker compose -f docker-compose.security.yml up dependency-check
+  # SCA: Trivy Filesystem Scan (scan node_modules)
+  # docker compose -f docker-compose.security.yml up dependency-scan
   # Yêu cầu: chạy npm-build trước để có node_modules
   # ----------------------------------------------------------
-  dependency-check:
-    image: owasp/dependency-check:11.0.0
-    container_name: devsecops-dependency-check
+  dependency-scan:
+    image: aquasec/trivy:0.58.0
+    container_name: devsecops-dependency-scan
     volumes:
       - ./app:/src:ro
-      - ./reports:/report
-      - dc-data:/usr/share/dependency-check/data
+      - ./reports:/output
     command:
-      - --scan
+      - fs
+      - --format
+      - json
+      - --output
+      - /output/dependency-scan-report.json
+      - --severity
+      - CRITICAL,HIGH
+      - --scanners
+      - vuln
       - /src
-      - --format
-      - JSON
-      - --format
-      - HTML
-      - --out
-      - /report
-      - --project
-      - devsecops-app
-      - --disableAssembly
-      - --nodeAuditSkipDevDependencies
     depends_on:
       npm-build:
         condition: service_completed_successfully
@@ -199,10 +196,6 @@ services:
       - "host.docker.internal:host-gateway"
     networks:
       - scan-net
-
-volumes:
-  dc-data:
-    name: devsecops-dependency-check-data
 
 networks:
   scan-net:

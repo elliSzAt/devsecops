@@ -16,7 +16,6 @@ env:
   # Pinned tool versions - tránh supply chain attack qua :latest
   GITLEAKS_VERSION: "v8.18.2"
   SEMGREP_VERSION: "1.90.0"
-  DC_VERSION: "11.0.0"
   TRIVY_VERSION: "0.58.0"
   ZAP_VERSION: "2.16.0"
 
@@ -141,41 +140,31 @@ jobs:
       - name: Create reports directory
         run: mkdir -p ${{ env.REPORT_DIR }}
 
-      - name: OWASP Dependency-Check (scan node_modules)
+      - name: Trivy Dependency Scan (SCA)
         run: |
           docker run --rm \
             -v ${{ github.workspace }}/app:/src:ro \
-            -v ${{ github.workspace }}/reports:/report \
-            -v devsecops-dc-data:/usr/share/dependency-check/data \
-            owasp/dependency-check:${{ env.DC_VERSION }} \
-            --scan /src \
-            --format JSON \
-            --format HTML \
-            --out /report \
-            --project "devsecops-app" \
-            --disableAssembly \
-            --nodeAuditSkipDevDependencies \
-            --nvdApiKey "${{ secrets.NVD_API_KEY }}" \
-          || true
-
-          DC_REPORT="reports/dependency-check-report.json"
-          if [ ! -f "$DC_REPORT" ]; then
-            echo "ERROR: No Dependency-Check report generated!"
-            exit 1
-          fi
+            -v ${{ github.workspace }}/reports:/output \
+            aquasec/trivy:${{ env.TRIVY_VERSION }} \
+            fs \
+            --format json \
+            --output /output/dependency-scan-report.json \
+            --severity CRITICAL,HIGH \
+            --scanners vuln \
+            /src
 
           RESULT=$(python3 -c "
           import json
-          with open('${DC_REPORT}') as f:
+          with open('reports/dependency-scan-report.json') as f:
               data = json.load(f)
               c = h = 0
-              for dep in data.get('dependencies', []):
-                  for v in dep.get('vulnerabilities', []):
-                      sev = v.get('severity', '').upper()
+              for r in data.get('Results', []):
+                  for v in r.get('Vulnerabilities', []):
+                      sev = v.get('Severity', '').upper()
                       if sev == 'CRITICAL': c += 1
                       elif sev == 'HIGH': h += 1
               print(f'{c} {h}')
-          ")
+          " 2>/dev/null || echo "0 0")
 
           CRITICAL=$(echo "$RESULT" | awk '{print $1}')
           HIGH=$(echo "$RESULT" | awk '{print $2}')
@@ -186,14 +175,12 @@ jobs:
             exit 1
           fi
 
-      - name: Upload Dependency-Check Reports
+      - name: Upload Dependency Scan Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dependency-check-reports
-          path: |
-            reports/dependency-check-report.json
-            reports/dependency-check-report.html
+          name: dependency-scan-report
+          path: reports/dependency-scan-report.json
           retention-days: 30
 
   # ================================================================

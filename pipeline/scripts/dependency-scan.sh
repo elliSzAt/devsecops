@@ -2,103 +2,78 @@
 set -euo pipefail
 
 echo "============================================"
-echo "  SCA: OWASP Dependency-Check"
+echo "  SCA: Trivy Filesystem Scan"
 echo "============================================"
 
 REPORT_DIR="${REPORT_DIR:-./reports}"
 WORKSPACE="${GITHUB_WORKSPACE:-.}"
 APP_DIR="${WORKSPACE}/app"
-DC_DATA_DIR="${DC_DATA_DIR:-/tmp/dependency-check-data}"
+TRIVY_VERSION="${TRIVY_VERSION:-0.58.0}"
 
 mkdir -p "$REPORT_DIR"
-mkdir -p "$DC_DATA_DIR"
 
 if [ ! -d "${APP_DIR}/node_modules" ]; then
-  echo "[SCA] ERROR: node_modules not found! Run 'npm ci' first."
-  exit 1
+  echo "[SCA] WARNING: node_modules not found. Trivy will scan package.json/package-lock.json only."
 fi
 
-NODE_MODULES_SIZE=$(du -sh "${APP_DIR}/node_modules" 2>/dev/null | awk '{print $1}')
-echo "[SCA] Scan target: ${APP_DIR}/node_modules (${NODE_MODULES_SIZE})"
+SCA_REPORT="${REPORT_DIR}/dependency-scan-report.json"
 
 run_with_docker() {
-  echo "[SCA] Running OWASP Dependency-Check via Docker..."
+  echo "[SCA] Running Trivy fs via Docker..."
   docker run --rm \
     -v "${APP_DIR}:/src:ro" \
-    -v "$(cd "${REPORT_DIR}" && pwd):/report" \
-    -v "${DC_DATA_DIR}:/usr/share/dependency-check/data" \
-    owasp/dependency-check:11.0.0 \
-    --scan /src \
-    --format JSON \
-    --format HTML \
-    --out /report \
-    --project "devsecops-app" \
-    --disableAssembly \
-    --nodeAuditSkipDevDependencies \
-    --nvdApiKey "${NVD_API_KEY:-}" \
+    -v "$(cd "${REPORT_DIR}" && pwd):/output" \
+    aquasec/trivy:${TRIVY_VERSION} \
+    fs \
+    --format json \
+    --output /output/dependency-scan-report.json \
+    --severity CRITICAL,HIGH \
+    --scanners vuln \
+    /src \
     || true
 }
 
 run_native() {
-  echo "[SCA] Running OWASP Dependency-Check native..."
-  dependency-check.sh \
-    --scan "${APP_DIR}" \
-    --format JSON \
-    --format HTML \
-    --out "${REPORT_DIR}" \
-    --project "devsecops-app" \
-    --disableAssembly \
-    --nodeAuditSkipDevDependencies \
-    --nvdApiKey "${NVD_API_KEY:-}" \
+  echo "[SCA] Running Trivy fs native..."
+  trivy fs \
+    --format json \
+    --output "${SCA_REPORT}" \
+    --severity CRITICAL,HIGH \
+    --scanners vuln \
+    "${APP_DIR}" \
     || true
 }
 
-if command -v dependency-check.sh &>/dev/null; then
+if command -v trivy &>/dev/null; then
   run_native
 elif command -v docker &>/dev/null; then
   run_with_docker
 else
-  echo "[SCA] ERROR: Neither dependency-check nor docker found!"
+  echo "[SCA] ERROR: Neither trivy nor docker found!"
   exit 1
 fi
 
-DC_REPORT="${REPORT_DIR}/dependency-check-report.json"
-
-if [ ! -f "$DC_REPORT" ]; then
-  echo "[SCA] WARNING: Report not generated, checking alternative names..."
-  for f in "${REPORT_DIR}"/*dependency-check*.json; do
-    if [ -f "$f" ]; then
-      DC_REPORT="$f"
-      break
-    fi
-  done
-fi
-
-if [ ! -f "$DC_REPORT" ]; then
-  echo "[SCA] ERROR: No Dependency-Check report found!"
-  echo "[SCA] Pipeline FAILED - cannot verify dependencies are safe."
+if [ ! -f "$SCA_REPORT" ]; then
+  echo "[SCA] ERROR: No scan report found!"
   exit 1
 fi
 
 VULN_SUMMARY=$(python3 << PYEOF
 import json, sys
 
-with open("${DC_REPORT}") as f:
+with open("${SCA_REPORT}") as f:
     data = json.load(f)
 
 critical = 0
 high = 0
 medium = 0
 low = 0
-total_deps = len(data.get("dependencies", []))
-vuln_deps = 0
+total_vulns = 0
 
-for dep in data.get("dependencies", []):
-    vulns = dep.get("vulnerabilities", [])
-    if vulns:
-        vuln_deps += 1
-    for v in vulns:
-        severity = v.get("severity", "").upper()
+for r in data.get("Results", []):
+    for v in r.get("Vulnerabilities", []):
+        total_vulns += 1
+        severity = v.get("Severity", "").upper()
         if severity == "CRITICAL":
             critical += 1
         elif severity == "HIGH":
@@ -108,29 +83,26 @@ for dep in data.get("dependencies", []):
         else:
             low += 1
 
-print(f"{total_deps} {vuln_deps} {critical} {high} {medium} {low}")
+print(f"{total_vulns} {critical} {high} {medium} {low}")
 PYEOF
 )
 
-TOTAL_DEPS=$(echo "$VULN_SUMMARY" | awk '{print $1}')
-VULN_DEPS=$(echo "$VULN_SUMMARY" | awk '{print $2}')
-CRITICAL=$(echo "$VULN_SUMMARY" | awk '{print $3}')
-HIGH=$(echo "$VULN_SUMMARY" | awk '{print $4}')
-MEDIUM=$(echo "$VULN_SUMMARY" | awk '{print $5}')
-LOW=$(echo "$VULN_SUMMARY" | awk '{print $6}')
+TOTAL=$(echo "$VULN_SUMMARY" | awk '{print $1}')
+CRITICAL=$(echo "$VULN_SUMMARY" | awk '{print $2}')
+HIGH=$(echo "$VULN_SUMMARY" | awk '{print $3}')
+MEDIUM=$(echo "$VULN_SUMMARY" | awk '{print $4}')
+LOW=$(echo "$VULN_SUMMARY" | awk '{print $5}')
 
 echo ""
-echo "[SCA] ========= DEPENDENCY-CHECK SUMMARY ========="
-echo "[SCA] Total dependencies scanned: ${TOTAL_DEPS}"
-echo "[SCA] Vulnerable dependencies:    ${VULN_DEPS}"
+echo "[SCA] ========= DEPENDENCY SCAN SUMMARY ========="
+echo "[SCA] Total vulnerabilities: ${TOTAL}"
 echo "[SCA] ─────────────────────────────────────────────"
 echo "[SCA] Critical:  ${CRITICAL}"
 echo "[SCA] High:      ${HIGH}"
 echo "[SCA] Medium:    ${MEDIUM}"
 echo "[SCA] Low:       ${LOW}"
 echo "[SCA] ─────────────────────────────────────────────"
-echo "[SCA] Report JSON: ${DC_REPORT}"
-echo "[SCA] Report HTML: ${REPORT_DIR}/dependency-check-report.html"
+echo "[SCA] Report: ${SCA_REPORT}"
 echo "[SCA] ============================================="
 
 if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
