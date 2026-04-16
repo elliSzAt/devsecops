@@ -6,11 +6,15 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   APP_DIR: ./app
   REPORT_DIR: ./reports
   IMAGE_NAME: devsecops-app
-  REGISTRY: ${{ vars.REGISTRY_URL || 'localhost:5000' }}
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
   DEPLOY_COMPOSE_FILE: docker-compose.yml
   APP_URL: http://localhost:3000
   # Pinned tool versions - tránh supply chain attack qua :latest
@@ -286,11 +290,11 @@ jobs:
     runs-on: self-hosted
     needs: [build-image, scan-image]
     steps:
-      - name: Login to Registry
+      - name: Login to GitHub Container Registry
         run: |
-          echo "${{ secrets.REGISTRY_PASSWORD }}" | \
-            docker login ${{ env.REGISTRY }} \
-              -u "${{ secrets.REGISTRY_USERNAME }}" \
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            docker login ghcr.io \
+              -u "${{ github.actor }}" \
               --password-stdin
 
       - name: Tag and Push image
