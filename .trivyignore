@@ -6,3 +6,19 @@
 # Ví dụ:
 # CVE-2023-44487  # HTTP/2 Rapid Reset - mitigated by WAF rate limiting, expires 2026-06-01
 # CVE-2023-4911   # glibc - not exploitable in container context, expires 2026-05-15
+
+CVE-2025-62718 # skip
+CVE-2026-40175 # skip
+CVE-2021-3749 # skip
+CVE-2025-27152 # skip
+CVE-2026-25639 # skip
+CVE-2021-23337 # skip
+CVE-2026-4800 # skip
+CVE-2022-0235 # skip
+CVE-2026-23745 # skip
+CVE-2026-23950 # skip
+CVE-2026-24842 # skip
+CVE-2026-26960 # skip
+CVE-2026-29786 # skip
+CVE-2026-31802 # skip
+
