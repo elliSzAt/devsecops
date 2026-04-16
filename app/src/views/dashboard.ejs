@@ -1,0 +1,62 @@
+<div class="container page">
+  <h1 style="margin-bottom:.5rem">Dashboard</h1>
+  <p style="color:var(--muted);margin-bottom:2rem">Application overview and user management</p>
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="number" id="user-count">-</div>
+      <div class="label">Total Users</div>
+    </div>
+    <div class="stat-card">
+      <div class="number">8</div>
+      <div class="label">Known Vulns</div>
+    </div>
+    <div class="stat-card">
+      <div class="number">3</div>
+      <div class="label">Critical</div>
+    </div>
+    <div class="stat-card">
+      <div class="number">v1.0.0</div>
+      <div class="label">App Version</div>
+    </div>
+  </div>
+
+  <h2 style="font-size:1.1rem;margin-bottom:1rem">Users</h2>
+
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Username</th><th>Email</th><th>Role</th></tr>
+    </thead>
+    <tbody id="user-table">
+      <tr><td colspan="4" style="text-align:center;color:var(--muted)">Loading...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+(async () => {
+  try {
+    const res = await fetch('/auth/users');
+    const users = await res.json();
+    const tbody = document.getElementById('user-table');
+    document.getElementById('user-count').textContent = users.length;
+
+    if (users.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted)">No users found</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = users.map(u =>
+      `<tr>
+        <td>${u.id}</td>
+        <td>${u.username}</td>
+        <td>${u.email}</td>
+        <td><span class="badge ${u.role === 'admin' ? 'badge-danger' : 'badge-get'}">${u.role}</span></td>
+      </tr>`
+    ).join('');
+  } catch (err) {
+    document.getElementById('user-table').innerHTML =
+      '<tr><td colspan="4" style="color:var(--danger)">Failed to load users</td></tr>';
+  }
+})();
+</script>

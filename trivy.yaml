@@ -1,0 +1,27 @@
+# Trivy configuration
+# Áp dụng cho cả container scan và dependency scan
+# Docs: https://aquasecurity.github.io/trivy/latest/docs/configuration/
+
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM
+
+scan:
+  scanners:
+    - vuln
+    - misconfig
+    - secret
+
+vulnerability:
+  type:
+    - os
+    - library
+
+misconfig:
+  # Kiểm tra Dockerfile best practices
+  checks:
+    - ID: DS002    # Image user should not be root
+    - ID: DS001    # Use specific image version
+    - ID: DS026    # No HEALTHCHECK defined
+    - ID: DS005    # Unnecessary port exposed

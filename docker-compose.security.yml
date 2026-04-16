@@ -1,0 +1,209 @@
+version: "3.8"
+
+# ============================================================
+# DevSecOps - Local Security Scanning
+# ============================================================
+# File riêng để chạy security tools local bằng Docker.
+# Pipeline chính chạy trên GitHub Actions (self-hosted).
+# File này dùng để demo / test scan trên máy local.
+#
+# Cách chạy:
+#   Toàn bộ pipeline:     docker compose -f docker-compose.security.yml up pipeline-runner
+#   Chỉ SAST:             docker compose -f docker-compose.security.yml up gitleaks-scan semgrep-scan
+#   Chỉ SCA:              docker compose -f docker-compose.security.yml up dependency-check
+#   Chỉ Container scan:   docker compose -f docker-compose.security.yml up trivy-scan
+#   Chỉ DAST:             docker compose -f docker-compose.security.yml up zap-scan
+#   Xem reports:          ls -la reports/
+#
+# Yêu cầu:
+#   - Docker & Docker Compose
+#   - App đã build: docker compose build app (từ docker-compose.yml chính)
+# ============================================================
+
+services:
+  # ----------------------------------------------------------
+  # Full Pipeline Runner (chạy tuần tự tất cả stages)
+  # ----------------------------------------------------------
+  pipeline-runner:
+    image: docker:24-cli
+    container_name: devsecops-pipeline-runner
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        echo "╔══════════════════════════════════════════════╗"
+        echo "║   DevSecOps Pipeline - Local Full Run        ║"
+        echo "╚══════════════════════════════════════════════╝"
+        echo ""
+
+        echo "━━ [1/6] SAST: Gitleaks ━━"
+        docker compose -f docker-compose.security.yml up --abort-on-container-exit gitleaks-scan || true
+
+        echo "━━ [2/6] SAST: Semgrep ━━"
+        docker compose -f docker-compose.security.yml up --abort-on-container-exit semgrep-scan || true
+
+        echo "━━ [3/6] Build & Install deps ━━"
+        docker compose -f docker-compose.security.yml up --abort-on-container-exit npm-build || true
+
+        echo "━━ [4/6] SCA: Dependency-Check ━━"
+        docker compose -f docker-compose.security.yml up --abort-on-container-exit dependency-check || true
+
+        echo "━━ [5/6] Container Scan: Trivy ━━"
+        docker compose -f docker-compose.security.yml up --abort-on-container-exit trivy-scan || true
+
+        echo "━━ [6/6] DAST: OWASP ZAP ━━"
+        docker compose -f docker-compose.security.yml up --abort-on-container-exit zap-scan || true
+
+        echo ""
+        echo "╔══════════════════════════════════════════════╗"
+        echo "║   Pipeline complete. Reports in ./reports/   ║"
+        echo "╚══════════════════════════════════════════════╝"
+        ls -la /workspace/reports/ 2>/dev/null || echo "No reports generated."
+    networks:
+      - scan-net
+
+  # ----------------------------------------------------------
+  # SAST: Gitleaks - Secret Scanning
+  # docker compose -f docker-compose.security.yml up gitleaks-scan
+  # ----------------------------------------------------------
+  gitleaks-scan:
+    image: zricethezav/gitleaks:latest
+    container_name: devsecops-gitleaks
+    volumes:
+      - .:/src:ro
+      - ./reports:/src/reports
+    command:
+      - detect
+      - --source=/src
+      - --report-format=json
+      - --report-path=/src/reports/gitleaks-report.json
+      - --exit-code=0
+    networks:
+      - scan-net
+
+  # ----------------------------------------------------------
+  # SAST: Semgrep - Code Scanning
+  # docker compose -f docker-compose.security.yml up semgrep-scan
+  # ----------------------------------------------------------
+  semgrep-scan:
+    image: returntocorp/semgrep:latest
+    container_name: devsecops-semgrep
+    working_dir: /src
+    volumes:
+      - .:/src:ro
+      - ./reports:/src/reports
+    entrypoint: ["semgrep"]
+    command:
+      - scan
+      - --config=/src/security/semgrep/.semgrep.yml
+      - --config=p/owasp-top-ten
+      - --config=p/nodejs
+      - --json
+      - --output=/src/reports/sast-report.json
+      - /src/app/src/
+    networks:
+      - scan-net
+
+  # ----------------------------------------------------------
+  # Build: npm ci (cài deps vào node_modules để SCA scan)
+  # ----------------------------------------------------------
+  npm-build:
+    image: node:18-slim
+    container_name: devsecops-npm-build
+    working_dir: /app
+    volumes:
+      - ./app:/app
+    command: ["sh", "-c", "npm ci && echo '[BUILD] node_modules ready for scanning'"]
+    networks:
+      - scan-net
+
+  # ----------------------------------------------------------
+  # SCA: OWASP Dependency-Check (scan node_modules)
+  # docker compose -f docker-compose.security.yml up dependency-check
+  # Yêu cầu: chạy npm-build trước để có node_modules
+  # ----------------------------------------------------------
+  dependency-check:
+    image: owasp/dependency-check:latest
+    container_name: devsecops-dependency-check
+    volumes:
+      - ./app:/src:ro
+      - ./reports:/report
+      - dc-data:/usr/share/dependency-check/data
+    command:
+      - --scan
+      - /src
+      - --format
+      - JSON
+      - --format
+      - HTML
+      - --out
+      - /report
+      - --project
+      - devsecops-app
+      - --disableAssembly
+      - --nodeAuditSkipDevDependencies
+    depends_on:
+      npm-build:
+        condition: service_completed_successfully
+    networks:
+      - scan-net
+
+  # ----------------------------------------------------------
+  # Container Scan: Trivy (scan Docker image)
+  # docker compose -f docker-compose.security.yml up trivy-scan
+  # Yêu cầu: image devsecops-app:latest đã được build
+  # ----------------------------------------------------------
+  trivy-scan:
+    image: aquasec/trivy:latest
+    container_name: devsecops-trivy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./reports:/output
+    command:
+      - image
+      - --format
+      - json
+      - --output
+      - /output/container-scan-report.json
+      - --severity
+      - CRITICAL,HIGH,MEDIUM
+      - devsecops-app:latest
+    networks:
+      - scan-net
+
+  # ----------------------------------------------------------
+  # DAST: OWASP ZAP Baseline Scan
+  # docker compose -f docker-compose.security.yml up zap-scan
+  # Yêu cầu: app đang chạy trên localhost:3000
+  # ----------------------------------------------------------
+  zap-scan:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    container_name: devsecops-zap
+    volumes:
+      - ./reports:/zap/wrk:rw
+    command:
+      - zap-baseline.py
+      - -t
+      - http://host.docker.internal:3000
+      - -J
+      - dast-report.json
+      - -r
+      - dast-report.html
+      - -l
+      - WARN
+      - -I
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - scan-net
+
+volumes:
+  dc-data:
+    name: devsecops-dependency-check-data
+
+networks:
+  scan-net:
+    driver: bridge

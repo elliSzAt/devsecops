@@ -1,0 +1,8 @@
+# Trivy Ignore Rules
+# CVE được liệt kê ở đây sẽ KHÔNG làm fail pipeline.
+# Chỉ thêm CVE khi đã có mitigating control hoặc accepted risk.
+# Format: CVE-ID  # lý do + ngày hết hạn exception
+#
+# Ví dụ:
+# CVE-2023-44487  # HTTP/2 Rapid Reset - mitigated by WAF rate limiting, expires 2026-06-01
+# CVE-2023-4911   # glibc - not exploitable in container context, expires 2026-05-15

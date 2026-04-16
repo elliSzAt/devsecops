@@ -1,0 +1,56 @@
+version: "3.8"
+
+# ============================================================
+# DevSecOps - Docker Compose (Deployment)
+# ============================================================
+# Pipeline orchestration is handled by GitHub Actions.
+# This file is used for application deployment and local dev.
+#
+# Usage:
+#   Deploy app:   docker compose up -d app
+#   View logs:    docker compose logs -f app
+#   Stop:         docker compose down
+#   Dashboard:    docker compose up -d dashboard
+# ============================================================
+
+services:
+  # ----------------------------------------------------------
+  # Application
+  # ----------------------------------------------------------
+  app:
+    image: ${IMAGE_NAME:-devsecops-app}:${IMAGE_TAG:-latest}
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: devsecops-app
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    restart: unless-stopped
+    networks:
+      - devsecops-net
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ----------------------------------------------------------
+  # Security Dashboard
+  # ----------------------------------------------------------
+  dashboard:
+    image: nginx:alpine
+    container_name: devsecops-dashboard
+    ports:
+      - "8080:80"
+    volumes:
+      - ./dashboard:/usr/share/nginx/html:ro
+    networks:
+      - devsecops-net
+
+networks:
+  devsecops-net:
+    driver: bridge

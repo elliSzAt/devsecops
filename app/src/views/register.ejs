@@ -1,0 +1,63 @@
+<div class="form-page">
+  <div class="form-box">
+    <h2>Register</h2>
+
+    <div id="msg" class="alert" style="display:none"></div>
+
+    <!-- VULN: no CSRF token, no password strength validation -->
+    <form id="register-form">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" placeholder="Choose a username" required>
+      </div>
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="you@example.com" required>
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="Create a password" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Create Account</button>
+    </form>
+
+    <div class="form-footer">
+      Already have an account? <a href="/login">Login here</a>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('register-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msgDiv = document.getElementById('msg');
+  const body = {
+    username: document.getElementById('username').value,
+    email: document.getElementById('email').value,
+    password: document.getElementById('password').value
+  };
+
+  try {
+    const res = await fetch('/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (res.ok) {
+      msgDiv.className = 'alert alert-success';
+      msgDiv.textContent = 'Account created! Redirecting to login...';
+      msgDiv.style.display = 'block';
+      setTimeout(() => window.location.href = '/login', 1500);
+    } else {
+      msgDiv.className = 'alert alert-danger';
+      msgDiv.textContent = data.error || 'Registration failed';
+      msgDiv.style.display = 'block';
+    }
+  } catch (err) {
+    msgDiv.className = 'alert alert-danger';
+    msgDiv.textContent = 'Network error';
+    msgDiv.style.display = 'block';
+  }
+});
+</script>

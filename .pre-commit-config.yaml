@@ -1,0 +1,24 @@
+# Pre-commit hooks - Block commits with secrets locally
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.2
+    hooks:
+      - id: gitleaks
+        name: Gitleaks Secret Scanner
+        description: Scan for hardcoded secrets before commit
+        entry: gitleaks
+        language: golang
+        args: ['detect', '--source=.', '--verbose', '--no-git']
+        # Uses Gitleaks default rules (150+ built-in patterns)
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim Trailing Whitespace
+      - id: end-of-file-fixer
+        name: Fix End of Files
+      - id: check-yaml
+        name: Check YAML Syntax
+      - id: check-json
+        name: Check JSON Syntax

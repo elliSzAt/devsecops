@@ -1,0 +1,98 @@
+rules:
+  - id: hardcoded-secret
+    patterns:
+      - pattern: const $SECRET = '...'
+      - metavariable-regex:
+          metavariable: $SECRET
+          regex: ".*(SECRET|KEY|TOKEN|PASSWORD|PASS|CREDENTIAL).*"
+    message: "Hardcoded secret detected in variable '$SECRET'. Use environment variables or a secrets manager."
+    languages: [javascript]
+    severity: ERROR
+    metadata:
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      owasp: "A07:2021 - Identification and Authentication Failures"
+
+  - id: sql-injection-raw-query
+    patterns:
+      - pattern: sequelize.query(`...${$VAR}...`, ...)
+    message: "Potential SQL injection via string interpolation in raw query. Use parameterized queries."
+    languages: [javascript]
+    severity: ERROR
+    metadata:
+      cwe: "CWE-89: SQL Injection"
+      owasp: "A03:2021 - Injection"
+
+  - id: command-injection
+    patterns:
+      - pattern: exec(`... ${$INPUT} ...`, ...)
+    message: "Potential command injection. User input '$INPUT' is passed directly to exec()."
+    languages: [javascript]
+    severity: ERROR
+    metadata:
+      cwe: "CWE-78: OS Command Injection"
+      owasp: "A03:2021 - Injection"
+
+  - id: xss-reflected
+    patterns:
+      - pattern: res.send(`...<html>...${$VAR}...`)
+    message: "Potential reflected XSS. User input is embedded directly in HTML response without sanitization."
+    languages: [javascript]
+    severity: WARNING
+    metadata:
+      cwe: "CWE-79: Cross-site Scripting"
+      owasp: "A03:2021 - Injection"
+
+  - id: missing-auth-middleware
+    pattern: router.get('/users', async (req, res) => { ... })
+    message: "Sensitive endpoint /users lacks authentication middleware."
+    languages: [javascript]
+    severity: WARNING
+    metadata:
+      cwe: "CWE-306: Missing Authentication for Critical Function"
+      owasp: "A01:2021 - Broken Access Control"
+
+  - id: jwt-no-expiry
+    patterns:
+      - pattern: jwt.sign($PAYLOAD, $SECRET)
+      - pattern-not: jwt.sign($PAYLOAD, $SECRET, { expiresIn: ... })
+    message: "JWT token created without expiration. Set expiresIn to limit token lifetime."
+    languages: [javascript]
+    severity: WARNING
+    metadata:
+      cwe: "CWE-613: Insufficient Session Expiration"
+      owasp: "A07:2021 - Identification and Authentication Failures"
+
+  - id: error-info-leak
+    patterns:
+      - pattern: "res.status(500).json({ error: $ERR.message, stack: $ERR.stack, ... })"
+    message: "Stack trace and internal details exposed in error response."
+    languages: [javascript]
+    severity: WARNING
+    metadata:
+      cwe: "CWE-209: Generation of Error Message Containing Sensitive Information"
+      owasp: "A04:2021 - Insecure Design"
+
+  - id: ssrf-vulnerability
+    patterns:
+      - pattern: |
+          const $URL = req.query.$PARAM;
+          ...
+          fetch($URL)
+    message: "Potential SSRF: user-controlled URL passed directly to fetch()."
+    languages: [javascript]
+    severity: ERROR
+    metadata:
+      cwe: "CWE-918: Server-Side Request Forgery"
+      owasp: "A10:2021 - Server-Side Request Forgery"
+
+  - id: helmet-conditional
+    pattern: |
+      if (process.env.NODE_ENV === 'development') {
+        app.use(helmet());
+      }
+    message: "Helmet security headers only active in development. Should be enabled in all environments."
+    languages: [javascript]
+    severity: WARNING
+    metadata:
+      cwe: "CWE-16: Configuration"
+      owasp: "A05:2021 - Security Misconfiguration"

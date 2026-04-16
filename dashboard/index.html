@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevSecOps Security Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
+    .header { background: linear-gradient(135deg, #1e293b, #334155); padding: 24px 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
+    .header h1 { font-size: 1.5rem; }
+    .header .status { display: flex; gap: 16px; align-items: center; }
+    .badge { padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+    .badge-fail { background: #dc2626; color: white; }
+    .badge-pass { background: #16a34a; color: white; }
+    .badge-warn { background: #d97706; color: white; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 32px 40px; }
+
+    .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 32px; }
+    .metric-card { background: #1e293b; border-radius: 12px; padding: 24px; border: 1px solid #334155; }
+    .metric-card .label { font-size: 0.85rem; color: #94a3b8; margin-bottom: 8px; }
+    .metric-card .value { font-size: 2.2rem; font-weight: 700; }
+    .metric-card .sub { font-size: 0.8rem; color: #64748b; margin-top: 4px; }
+    .critical { color: #ef4444; }
+    .high { color: #f97316; }
+    .medium { color: #eab308; }
+    .low { color: #22d3ee; }
+    .pass-color { color: #22c55e; }
+
+    .section { margin-bottom: 32px; }
+    .section h2 { font-size: 1.2rem; margin-bottom: 16px; color: #f1f5f9; border-bottom: 1px solid #334155; padding-bottom: 8px; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+    table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 12px; overflow: hidden; }
+    th { background: #334155; text-align: left; padding: 12px 16px; font-size: 0.85rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+    td { padding: 12px 16px; border-bottom: 1px solid #1e293b; font-size: 0.9rem; }
+    tr:hover { background: #334155; }
+    .sev-badge { padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    .sev-critical { background: rgba(239,68,68,0.2); color: #ef4444; }
+    .sev-high { background: rgba(249,115,22,0.2); color: #f97316; }
+    .sev-medium { background: rgba(234,179,8,0.2); color: #eab308; }
+    .sev-low { background: rgba(34,211,238,0.2); color: #22d3ee; }
+
+    .pipeline-stages { display: flex; gap: 4px; align-items: center; margin-bottom: 32px; }
+    .stage { flex: 1; background: #1e293b; border-radius: 8px; padding: 16px; text-align: center; border: 1px solid #334155; position: relative; }
+    .stage.active { border-color: #3b82f6; background: rgba(59,130,246,0.1); }
+    .stage.failed { border-color: #ef4444; background: rgba(239,68,68,0.1); }
+    .stage.passed { border-color: #22c55e; background: rgba(34,197,94,0.1); }
+    .stage .name { font-size: 0.85rem; font-weight: 600; }
+    .stage .time { font-size: 0.75rem; color: #64748b; margin-top: 4px; }
+    .arrow { color: #475569; font-size: 1.2rem; }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .kpi-card { background: #1e293b; border-radius: 12px; padding: 20px; border: 1px solid #334155; text-align: center; }
+    .kpi-card .kpi-value { font-size: 1.8rem; font-weight: 700; margin: 8px 0; }
+    .kpi-card .kpi-label { font-size: 0.85rem; color: #94a3b8; }
+    .kpi-card .kpi-trend { font-size: 0.8rem; margin-top: 4px; }
+    .trend-up { color: #ef4444; }
+    .trend-down { color: #22c55e; }
+
+    .views-toggle { display: flex; gap: 8px; margin-bottom: 24px; }
+    .view-btn { padding: 8px 20px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; color: #94a3b8; cursor: pointer; font-size: 0.85rem; }
+    .view-btn.active { background: #3b82f6; color: white; border-color: #3b82f6; }
+
+    .footer { text-align: center; padding: 24px; color: #475569; font-size: 0.8rem; border-top: 1px solid #1e293b; margin-top: 40px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>DevSecOps Security Dashboard</h1>
+      <span style="color: #64748b; font-size: 0.85rem;">Last scan: 2026-04-15 10:07:00 UTC | Pipeline #1247</span>
+    </div>
+    <div class="status">
+      <span class="badge badge-fail">PIPELINE BLOCKED</span>
+      <span style="font-size: 0.85rem; color: #94a3b8;">Branch: feature/user-api</span>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="section">
+      <h2>Pipeline Execution</h2>
+      <div class="pipeline-stages">
+        <div class="stage passed"><div class="name">Build</div><div class="time">45s</div></div>
+        <span class="arrow">→</span>
+        <div class="stage passed"><div class="name">Test</div><div class="time">32s</div></div>
+        <span class="arrow">→</span>
+        <div class="stage passed"><div class="name">SAST</div><div class="time">28s</div></div>
+        <span class="arrow">→</span>
+        <div class="stage passed"><div class="name">SCA</div><div class="time">15s</div></div>
+        <span class="arrow">→</span>
+        <div class="stage passed"><div class="name">Container</div><div class="time">22s</div></div>
+        <span class="arrow">→</span>
+        <div class="stage passed"><div class="name">IaC</div><div class="time">8s</div></div>
+        <span class="arrow">→</span>
+        <div class="stage failed"><div class="name">Policy Gate</div><div class="time">2s</div></div>
+        <span class="arrow">→</span>
+        <div class="stage" style="opacity: 0.4;"><div class="name">Deploy</div><div class="time">skipped</div></div>
+      </div>
+    </div>
+
+    <div class="views-toggle">
+      <button class="view-btn active" onclick="showView('ciso')">CISO / BOD View</button>
+      <button class="view-btn" onclick="showView('dev')">Dev Team View</button>
+    </div>
+
+    <div id="ciso-view">
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="label">Critical Findings</div>
+          <div class="value critical">8</div>
+          <div class="sub">Across all scans | SLA: 24 hours</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">High Findings</div>
+          <div class="value high">14</div>
+          <div class="sub">Across all scans | SLA: 7 days</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">Scans Passed</div>
+          <div class="value pass-color">0 / 4</div>
+          <div class="sub">SAST, SCA, Container, IaC</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">Pipeline Decision</div>
+          <div class="value critical">BLOCKED</div>
+          <div class="sub">2 policy violations triggered</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>KPIs for Board Reporting</h2>
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Mean Time to Remediate (MTTR)</div>
+            <div class="kpi-value" style="color: #f97316;">4.2 days</div>
+            <div class="kpi-trend trend-down">↓ 1.8 days vs last quarter</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Vulnerabilities Fixed Rate</div>
+            <div class="kpi-value" style="color: #22c55e;">78%</div>
+            <div class="kpi-trend trend-down">↑ 12% vs last quarter</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Pipeline Block Rate</div>
+            <div class="kpi-value" style="color: #eab308;">23%</div>
+            <div class="kpi-trend trend-down">↓ 8% vs last quarter</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Scans Passed / Total</div>
+            <div class="kpi-value" style="color: #3b82f6;">312 / 405</div>
+            <div class="kpi-trend">77% pass rate this month</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Open Critical Vulns</div>
+            <div class="kpi-value critical">3</div>
+            <div class="kpi-trend trend-up">↑ 1 from last week</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">SLA Compliance</div>
+            <div class="kpi-value" style="color: #22c55e;">91%</div>
+            <div class="kpi-trend">Target: 95%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="dev-view" style="display: none;">
+      <div class="section">
+        <h2>Findings by Scanner</h2>
+        <div class="two-col">
+          <div>
+            <h3 style="font-size: 1rem; margin-bottom: 12px; color: #94a3b8;">SAST Findings (Semgrep)</h3>
+            <table>
+              <thead><tr><th>Severity</th><th>Rule</th><th>File</th><th>Line</th></tr></thead>
+              <tbody>
+                <tr><td><span class="sev-badge sev-critical">CRITICAL</span></td><td>hardcoded-secret</td><td>auth.js</td><td>10</td></tr>
+                <tr><td><span class="sev-badge sev-critical">CRITICAL</span></td><td>sql-injection</td><td>api.js</td><td>23</td></tr>
+                <tr><td><span class="sev-badge sev-critical">CRITICAL</span></td><td>command-injection</td><td>api.js</td><td>11</td></tr>
+                <tr><td><span class="sev-badge sev-high">HIGH</span></td><td>ssrf-vulnerability</td><td>api.js</td><td>44</td></tr>
+                <tr><td><span class="sev-badge sev-high">HIGH</span></td><td>xss-reflected</td><td>api.js</td><td>33</td></tr>
+                <tr><td><span class="sev-badge sev-high">HIGH</span></td><td>jwt-no-expiry</td><td>auth.js</td><td>32</td></tr>
+                <tr><td><span class="sev-badge sev-high">HIGH</span></td><td>missing-auth</td><td>auth.js</td><td>62</td></tr>
+                <tr><td><span class="sev-badge sev-medium">MEDIUM</span></td><td>error-info-leak</td><td>server.js</td><td>35</td></tr>
+                <tr><td><span class="sev-badge sev-medium">MEDIUM</span></td><td>helmet-conditional</td><td>server.js</td><td>19</td></tr>
+                <tr><td><span class="sev-badge sev-medium">MEDIUM</span></td><td>prototype-pollution</td><td>api.js</td><td>38</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h3 style="font-size: 1rem; margin-bottom: 12px; color: #94a3b8;">SCA Vulnerabilities</h3>
+            <table>
+              <thead><tr><th>Severity</th><th>Package</th><th>CVE</th><th>Fix</th></tr></thead>
+              <tbody>
+                <tr><td><span class="sev-badge sev-critical">CRITICAL</span></td><td>lodash 4.17.20</td><td>CVE-2021-23337</td><td>4.17.21</td></tr>
+                <tr><td><span class="sev-badge sev-critical">CRITICAL</span></td><td>axios 0.21.1</td><td>CVE-2020-28168</td><td>1.6.0</td></tr>
+                <tr><td><span class="sev-badge sev-high">HIGH</span></td><td>axios 0.21.1</td><td>CVE-2021-3749</td><td>0.21.2</td></tr>
+                <tr><td><span class="sev-badge sev-high">HIGH</span></td><td>semver 5.7.1</td><td>CVE-2022-25883</td><td>5.7.2</td></tr>
+                <tr><td><span class="sev-badge sev-high">HIGH</span></td><td>jsonwebtoken 9.0.0</td><td>CVE-2021-23807</td><td>9.0.1</td></tr>
+                <tr><td><span class="sev-badge sev-medium">MEDIUM</span></td><td>serialize-js 3.1.0</td><td>CVE-2022-46175</td><td>6.0.1</td></tr>
+                <tr><td><span class="sev-badge sev-medium">MEDIUM</span></td><td>node-fetch 2.6.1</td><td>CVE-2022-0235</td><td>2.6.7</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Remediation Priority</h2>
+        <table>
+          <thead><tr><th>#</th><th>Finding</th><th>Type</th><th>Where to Fix</th><th>How to Fix</th><th>SLA</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Hardcoded JWT secret</td><td>SAST</td><td>Code (auth.js)</td><td>Use env var + secrets manager</td><td>24h</td></tr>
+            <tr><td>2</td><td>SQL Injection</td><td>SAST</td><td>Code (api.js)</td><td>Parameterized queries</td><td>24h</td></tr>
+            <tr><td>3</td><td>Command Injection</td><td>SAST</td><td>Code (api.js)</td><td>Use execFile() + input validation</td><td>24h</td></tr>
+            <tr><td>4</td><td>lodash CVE-2021-23337</td><td>SCA</td><td>package.json</td><td>Upgrade to 4.17.21</td><td>24h</td></tr>
+            <tr><td>5</td><td>axios CVE-2020-28168</td><td>SCA</td><td>package.json</td><td>Upgrade to 1.6.0+</td><td>24h</td></tr>
+            <tr><td>6</td><td>Container runs as root</td><td>Container</td><td>Dockerfile</td><td>Add USER nonroot (see Dockerfile.secure)</td><td>7d</td></tr>
+            <tr><td>7</td><td>Unpinned base image</td><td>IaC</td><td>Dockerfile</td><td>Use node:18-alpine with digest</td><td>7d</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="footer">
+      DevSecOps Dashboard v1.0 | Data refreshed every pipeline run | Policy: security-policy.json v1.0
+    </div>
+  </div>
+
+  <script>
+    function showView(view) {
+      document.getElementById('ciso-view').style.display = view === 'ciso' ? 'block' : 'none';
+      document.getElementById('dev-view').style.display = view === 'dev' ? 'block' : 'none';
+      document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+  </script>
+</body>
+</html>

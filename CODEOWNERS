@@ -1,0 +1,13 @@
+# Pipeline configuration - requires Security Team approval
+.gitlab-ci.yml @security-team
+Jenkinsfile @security-team
+pipeline/ @security-team
+docker-compose.yml @security-team @devops-team
+
+# Security policies - requires CISO approval
+pipeline/policies/ @security-team @ciso
+
+# Application code - dev team with security review for auth
+app/src/routes/auth.js @security-team @backend-team
+app/src/ @backend-team
+app/Dockerfile @devops-team @security-team

@@ -1,0 +1,266 @@
+name: DevSecOps Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  APP_DIR: ./app
+  REPORT_DIR: ./reports
+  IMAGE_NAME: devsecops-app
+  REGISTRY: ${{ vars.REGISTRY_URL || 'localhost:5000' }}
+  DEPLOY_COMPOSE_FILE: docker-compose.yml
+  APP_URL: http://localhost:3000
+
+jobs:
+  # ================================================================
+  # STAGE 1: SAST - Gitleaks + Semgrep
+  # Fail pipeline if: secrets found OR High/Critical code issues
+  # ================================================================
+  sast:
+    name: "SAST (Gitleaks + Semgrep)"
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create reports directory
+        run: mkdir -p ${{ env.REPORT_DIR }}
+
+      - name: Gitleaks - Secret Scanning
+        run: bash pipeline/scripts/gitleaks-scan.sh
+
+      - name: Semgrep - Code Scanning
+        run: bash pipeline/scripts/sast-scan.sh
+
+      - name: Upload SAST Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sast-reports
+          path: |
+            reports/gitleaks-report.json
+            reports/sast-report.json
+          retention-days: 30
+
+  # ================================================================
+  # STAGE 2: Build, Test & Dependency Scan (OWASP Dependency-Check)
+  # npm ci -> node_modules -> dependency-check scans that folder
+  # Fail pipeline if: High/Critical vulnerabilities in dependencies
+  # ================================================================
+  build-and-test:
+    name: "Build, Test & Dependency Scan"
+    runs-on: self-hosted
+    needs: sast
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies (npm ci -> node_modules)
+        working-directory: ${{ env.APP_DIR }}
+        run: npm ci
+
+      - name: Run tests
+        working-directory: ${{ env.APP_DIR }}
+        run: npm run test:ci
+
+      - name: Create reports directory
+        run: mkdir -p ${{ env.REPORT_DIR }}
+
+      - name: OWASP Dependency-Check (scan node_modules)
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: bash pipeline/scripts/dependency-scan.sh
+
+      - name: Upload Dependency-Check Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-reports
+          path: |
+            reports/dependency-check-report.json
+            reports/dependency-check-report.html
+          retention-days: 30
+
+  # ================================================================
+  # STAGE 3: Build Docker Image
+  # ================================================================
+  build-image:
+    name: "Build Docker Image"
+    runs-on: self-hosted
+    needs: build-and-test
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      image_full: ${{ steps.meta.outputs.image_full }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set image metadata
+        id: meta
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "image_tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "image_full=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.image_tag }} \
+            -t ${{ env.IMAGE_NAME }}:latest \
+            -f app/Dockerfile \
+            ./app
+
+      - name: Verify image
+        run: docker images ${{ env.IMAGE_NAME }} --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+
+  # ================================================================
+  # STAGE 4: Container Image Scan (Trivy)
+  # Fail pipeline if: High/Critical vulnerabilities in image
+  # ================================================================
+  scan-image:
+    name: "Container Scan (Trivy)"
+    runs-on: self-hosted
+    needs: build-image
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create reports directory
+        run: mkdir -p ${{ env.REPORT_DIR }}
+
+      - name: Trivy Image Scan
+        env:
+          IMAGE_TAG: ${{ needs.build-image.outputs.image_tag }}
+        run: bash pipeline/scripts/container-scan.sh
+
+      - name: Upload Container Scan Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-scan-report
+          path: reports/container-scan-report.json
+          retention-days: 30
+
+  # ================================================================
+  # STAGE 5: Push Image to Registry
+  # Only runs if container scan passes (no High/Critical)
+  # ================================================================
+  push-image:
+    name: "Push Image to Registry"
+    runs-on: self-hosted
+    needs: [build-image, scan-image]
+    steps:
+      - name: Login to Registry
+        run: |
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | \
+            docker login ${{ env.REGISTRY }} \
+              -u "${{ secrets.REGISTRY_USERNAME }}" \
+              --password-stdin
+
+      - name: Tag and Push image
+        env:
+          IMAGE_TAG: ${{ needs.build-image.outputs.image_tag }}
+          IMAGE_FULL: ${{ needs.build-image.outputs.image_full }}
+        run: |
+          docker tag ${{ env.IMAGE_NAME }}:${IMAGE_TAG} ${IMAGE_FULL}
+          docker tag ${{ env.IMAGE_NAME }}:${IMAGE_TAG} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker push ${IMAGE_FULL}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          echo "Pushed: ${IMAGE_FULL}"
+
+  # ================================================================
+  # STAGE 6: Deploy
+  # ================================================================
+  deploy:
+    name: "Deploy Application"
+    runs-on: self-hosted
+    needs: [build-image, push-image]
+    environment: staging
+    outputs:
+      previous_image: ${{ steps.save-state.outputs.previous_image }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Save current deployment state (for rollback)
+        id: save-state
+        run: |
+          PREV=$(docker inspect devsecops-app --format='{{.Config.Image}}' 2>/dev/null || echo "none")
+          echo "previous_image=${PREV}" >> $GITHUB_OUTPUT
+          echo "Previous image: ${PREV}"
+
+      - name: Deploy with Docker Compose
+        env:
+          IMAGE_TAG: ${{ needs.build-image.outputs.image_tag }}
+        run: bash pipeline/scripts/deploy.sh
+
+      - name: Health check
+        run: |
+          echo "Waiting for application to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf ${{ env.APP_URL }} > /dev/null 2>&1; then
+              echo "Application is healthy!"
+              exit 0
+            fi
+            echo "Attempt $i/30 - waiting..."
+            sleep 2
+          done
+          echo "Application failed health check!"
+          exit 1
+
+  # ================================================================
+  # STAGE 7: DAST Scan (OWASP ZAP)
+  # Fail pipeline if: High-risk vulnerabilities found -> trigger rollback
+  # ================================================================
+  dast:
+    name: "DAST Scan (OWASP ZAP)"
+    runs-on: self-hosted
+    needs: deploy
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create reports directory
+        run: mkdir -p ${{ env.REPORT_DIR }}
+
+      - name: OWASP ZAP Scan
+        run: bash pipeline/scripts/dast-scan.sh
+
+      - name: Upload DAST Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dast-report
+          path: |
+            reports/dast-report.json
+            reports/dast-report.html
+          retention-days: 30
+
+  # ================================================================
+  # STAGE 8: Rollback (only if DAST fails = High-risk bugs found)
+  # ================================================================
+  rollback:
+    name: "Rollback Deployment"
+    runs-on: self-hosted
+    needs: [deploy, dast]
+    if: ${{ always() && needs.dast.result == 'failure' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Rollback to previous version
+        env:
+          PREVIOUS_IMAGE: ${{ needs.deploy.outputs.previous_image }}
+        run: bash pipeline/scripts/rollback.sh

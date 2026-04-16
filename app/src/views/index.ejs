@@ -1,0 +1,57 @@
+<div class="hero">
+  <h1>DevSecOps Vulnerable App</h1>
+  <p>A deliberately vulnerable Node.js application built for testing DevSecOps security pipelines.</p>
+</div>
+
+<div class="container page">
+  <h2 style="margin-bottom:1rem;font-size:1.1rem;color:var(--muted)">API Endpoints</h2>
+  <div class="grid">
+
+    <div class="card">
+      <h3><span class="badge badge-post">POST</span> /auth/register</h3>
+      <p>Register a new user account. No password policy enforced.</p>
+    </div>
+
+    <div class="card">
+      <h3><span class="badge badge-post">POST</span> /auth/login</h3>
+      <p>Authenticate and receive a JWT. Token has no expiration.</p>
+    </div>
+
+    <div class="card">
+      <h3><span class="badge badge-get">GET</span> /auth/users</h3>
+      <p>List all users including password hashes. No auth required.</p>
+      <span class="badge badge-danger">Vuln: Missing Auth</span>
+    </div>
+
+    <div class="card">
+      <h3><span class="badge badge-get">GET</span> /api/search?q=</h3>
+      <p>Search users by name. Vulnerable to SQL injection.</p>
+      <span class="badge badge-danger">Vuln: SQLi</span>
+    </div>
+
+    <div class="card">
+      <h3><span class="badge badge-get">GET</span> /api/ping?host=</h3>
+      <p>Ping a host. User input passed directly to OS command.</p>
+      <span class="badge badge-danger">Vuln: Command Injection</span>
+    </div>
+
+    <div class="card">
+      <h3><span class="badge badge-get">GET</span> /api/greet?name=</h3>
+      <p>Greet page reflecting user input without sanitization.</p>
+      <span class="badge badge-danger">Vuln: Reflected XSS</span>
+    </div>
+
+    <div class="card">
+      <h3><span class="badge badge-get">GET</span> /api/fetch?url=</h3>
+      <p>Fetch a URL from the server. No allowlist validation.</p>
+      <span class="badge badge-danger">Vuln: SSRF</span>
+    </div>
+
+    <div class="card">
+      <h3><span class="badge badge-put">PUT</span> /api/profile</h3>
+      <p>Update user profile. Accepts entire body without filtering.</p>
+      <span class="badge badge-danger">Vuln: Mass Assignment</span>
+    </div>
+
+  </div>
+</div>

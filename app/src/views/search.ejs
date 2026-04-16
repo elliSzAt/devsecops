@@ -1,0 +1,44 @@
+<div class="container page">
+  <h1 style="margin-bottom:.5rem">Search Users</h1>
+  <p style="color:var(--muted);margin-bottom:1.5rem">Search is vulnerable to SQL injection for testing purposes.</p>
+
+  <div class="search-bar">
+    <input type="text" id="search-input" placeholder="Search by username... (try: ' OR 1=1 --)">
+    <button class="btn btn-primary btn-sm" onclick="doSearch()">Search</button>
+  </div>
+
+  <!-- VULN: search results rendered with innerHTML (DOM-based XSS) -->
+  <div id="results"></div>
+</div>
+
+<script>
+async function doSearch() {
+  const q = document.getElementById('search-input').value;
+  const container = document.getElementById('results');
+
+  if (!q.trim()) { container.innerHTML = ''; return; }
+
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+
+    if (!Array.isArray(data) || data.length === 0) {
+      container.innerHTML = '<p style="color:var(--muted)">No results found.</p>';
+      return;
+    }
+
+    let html = '<table><thead><tr><th>ID</th><th>Username</th><th>Email</th></tr></thead><tbody>';
+    data.forEach(u => {
+      html += `<tr><td>${u.id}</td><td>${u.username}</td><td>${u.email}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  } catch (err) {
+    container.innerHTML = '<p style="color:var(--danger)">Search failed: ' + err.message + '</p>';
+  }
+}
+
+document.getElementById('search-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doSearch();
+});
+</script>
