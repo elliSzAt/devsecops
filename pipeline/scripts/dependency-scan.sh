@@ -23,11 +23,13 @@ run_with_docker() {
   docker run --rm \
     -v "${APP_DIR}:/src:ro" \
     -v "$(cd "${REPORT_DIR}" && pwd):/output" \
+    -v "${WORKSPACE}/.trivyignore:/root/.trivyignore:ro" \
     aquasec/trivy:${TRIVY_VERSION} \
     fs \
     --format json \
     --output /output/dependency-scan-report.json \
     --severity CRITICAL,HIGH \
+    --ignorefile /root/.trivyignore \
     --scanners vuln \
     /src \
     || true

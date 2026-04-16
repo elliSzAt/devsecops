@@ -131,6 +131,7 @@ services:
     volumes:
       - ./app:/src:ro
       - ./reports:/output
+      - ./.trivyignore:/root/.trivyignore:ro
     command:
       - fs
       - --format
@@ -139,6 +140,8 @@ services:
       - /output/dependency-scan-report.json
       - --severity
       - CRITICAL,HIGH
+      - --ignorefile
+      - /root/.trivyignore
       - --scanners
       - vuln
       - /src

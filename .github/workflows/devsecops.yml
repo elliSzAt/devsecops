@@ -145,11 +145,13 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}/app:/src:ro \
             -v ${{ github.workspace }}/reports:/output \
+            -v ${{ github.workspace }}/.trivyignore:/root/.trivyignore:ro \
             aquasec/trivy:${{ env.TRIVY_VERSION }} \
             fs \
             --format json \
             --output /output/dependency-scan-report.json \
             --severity CRITICAL,HIGH \
+            --ignorefile /root/.trivyignore \
             --scanners vuln \
             /src
 
