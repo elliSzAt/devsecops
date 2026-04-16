@@ -385,7 +385,7 @@ jobs:
           docker run --rm \
             ${{ steps.app-info.outputs.network }} \
             -v ${{ github.workspace }}/reports:/zap/wrk:rw \
-            ghcr.io/zaproxy/zaproxy:${{ env.ZAP_VERSION }} \
+            zaproxy/zap-stable:${{ env.ZAP_VERSION }} \
             zap-baseline.py \
             -t ${{ steps.app-info.outputs.target }} \
             -J dast-report.json \

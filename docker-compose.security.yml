@@ -183,7 +183,7 @@ services:
   # Yêu cầu: app đang chạy trên localhost:3000
   # ----------------------------------------------------------
   zap-scan:
-    image: ghcr.io/zaproxy/zaproxy:2.16.0
+    image: zaproxy/zap-stable:2.16.0
     container_name: devsecops-zap
     volumes:
       - ./reports:/zap/wrk:rw
