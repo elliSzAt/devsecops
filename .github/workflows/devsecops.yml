@@ -146,7 +146,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}/app:/src:ro \
             -v ${{ github.workspace }}/reports:/report \
-            owasp/dependency-check-action:${{ env.DC_VERSION }} \
+            owasp/dependency-check:${{ env.DC_VERSION }} \
             --scan /src \
             --format JSON \
             --format HTML \
