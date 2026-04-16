@@ -307,8 +307,11 @@ jobs:
           LATEST="${{ env.REGISTRY }}/${OWNER}/${{ env.IMAGE_NAME }}:latest"
           docker tag ${{ env.IMAGE_NAME }}:${IMAGE_TAG} ${IMAGE_FULL}
           docker tag ${{ env.IMAGE_NAME }}:${IMAGE_TAG} ${LATEST}
-          docker push ${IMAGE_FULL}
-          docker push ${LATEST}
+          for i in 1 2 3; do
+            docker push ${IMAGE_FULL} && docker push ${LATEST} && break
+            echo "Push attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
           echo "Pushed: ${IMAGE_FULL}"
 
   # ================================================================
