@@ -66,7 +66,7 @@ router.post('/register', async (req, res) => {
 router.get('/users', async (req, res) => {
   try {
     const users = await User.findOne({
-      attributes: ['id', 'username', 'email', 'role']
+      attributes: ['id', 'username', 'email', 'role'] // no password
     });
     res.json(users);
   } catch (error) {
