@@ -66,7 +66,7 @@ router.post('/register', async (req, res) => {
 router.get('/users', async (req, res) => {
   try {
     const users = await User.findAll({
-      attributes: ['id', 'username', 'email', 'role', 'password']
+      // attributes: ['id', 'username', 'email', 'role', 'password']
     });
     res.json(users);
   } catch (error) {
