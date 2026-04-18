@@ -69,6 +69,9 @@ router.get('/users', async (req, res) => {
     //   attributes: ['id', 'username', 'email', 'role', 'password']
     // });
     // res.json(users);
+    const users = await User.findOne({
+      attributes: ['id', 'username', 'email']
+    })
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
