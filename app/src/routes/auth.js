@@ -65,8 +65,8 @@ router.post('/register', async (req, res) => {
 // VULN-008: No authentication middleware on sensitive endpoint
 router.get('/users', async (req, res) => {
   try {
-    const users = await User.findOne({
-      attributes: ['id', 'username', 'email', 'role'] // no password
+    const users = await User.findAll({
+      attributes: ['id', 'username', 'email', 'role'], // no password
     });
     res.json(users);
   } catch (error) {
