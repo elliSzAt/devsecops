@@ -22,14 +22,13 @@ env:
   SEMGREP_VERSION: "1.90.0"
   TRIVY_VERSION: "0.58.0"
   ZAP_VERSION: "2.16.0"
-  CHECKOV_VERSION: "3.2.57"
 
 jobs:
   # ================================================================
-  # STAGE 0: IaC Scan (Checkov) — chạy trước mọi bước khác
+  # STAGE 0: IaC Scan (Trivy config) — chạy trước mọi bước khác
   # ================================================================
   iac-scan:
-    name: "IaC Scan (Checkov)"
+    name: "IaC Scan (Trivy)"
     runs-on: self-hosted
     steps:
       - name: Checkout code
@@ -38,33 +37,25 @@ jobs:
       - name: Create reports directory
         run: mkdir -p ${{ env.REPORT_DIR }}
 
-      - name: Checkov - Terraform
+      - name: Trivy - Terraform (misconfiguration)
         run: |
-          set +e
           docker run --rm \
             -v ${{ github.workspace }}/infra/terraform:/tf:ro \
-            -v ${{ github.workspace }}/reports:/reports \
-            bridgecrew/checkov:${{ env.CHECKOV_VERSION }} \
-            -d /tf \
-            --framework terraform \
-            --config-file /tf/.checkov.yaml \
-            --download-external-modules false \
-            --compact \
-            -o json \
-            --output-file-path /reports
-          CHECKOV_EXIT=$?
-          set -e
-          if [ -f "reports/results.json" ]; then
-            echo "Checkov report: reports/results.json"
-          fi
-          exit "${CHECKOV_EXIT}"
+            -v ${{ github.workspace }}/reports:/output \
+            aquasec/trivy:${{ env.TRIVY_VERSION }} \
+            config \
+            --format json \
+            --output /output/iac-scan-report.json \
+            --severity CRITICAL,HIGH \
+            --exit-code 1 \
+            /tf
 
-      - name: Upload Checkov report
+      - name: Upload IaC scan report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: checkov-report
-          path: reports/results.json
+          name: iac-scan-report
+          path: reports/iac-scan-report.json
           if-no-files-found: warn
           retention-days: 30
 

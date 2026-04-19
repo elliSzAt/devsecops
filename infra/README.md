@@ -18,11 +18,24 @@ terraform plan
 
 Cần AWS credentials (`aws configure` hoặc biến môi trường).
 
-## Scan IaC (Checkov)
+## Scan IaC (Trivy config)
+
+Cùng image `aquasec/trivy` với bước container/dependency scan — **không cần API key**.
+
+Từ thư mục gốc repo:
 
 ```bash
-docker run --rm -v "$(pwd):/tf" bridgecrew/checkov:3.2.57 \
-  -d /tf --framework terraform --config-file /tf/.checkov.yaml
+mkdir -p reports
+docker run --rm \
+  -v "$(pwd)/infra/terraform:/tf:ro" \
+  -v "$(pwd)/reports:/output" \
+  aquasec/trivy:0.58.0 \
+  config \
+  --format json \
+  --output /output/iac-scan-report.json \
+  --severity CRITICAL,HIGH \
+  --exit-code 1 \
+  /tf
 ```
 
-Pipeline CI chạy bước này tự động (job đầu tiên).
+Pipeline CI chạy bước này tự động (job `iac-scan` đầu tiên). Phát hiện misconfiguration Terraform mức **Critical/High** sẽ **fail** job.

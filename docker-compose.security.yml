@@ -13,7 +13,7 @@ version: "3.8"
 #   Chỉ SCA:              docker compose -f docker-compose.security.yml up dependency-scan
 #   Chỉ Container scan:   docker compose -f docker-compose.security.yml up trivy-scan
 #   Chỉ DAST:             docker compose -f docker-compose.security.yml up zap-scan
-#   Chỉ IaC (Checkov):    docker compose -f docker-compose.security.yml up checkov-scan
+#   Chỉ IaC (Trivy):      docker compose -f docker-compose.security.yml up trivy-iac-scan
 #   Xem reports:          ls -la reports/
 #
 # Yêu cầu:
@@ -23,31 +23,26 @@ version: "3.8"
 
 services:
   # ----------------------------------------------------------
-  # IaC: Checkov (Terraform trong infra/terraform)
-  # docker compose -f docker-compose.security.yml up checkov-scan
+  # IaC: Trivy config (Terraform trong infra/terraform)
+  # docker compose -f docker-compose.security.yml up trivy-iac-scan
   # ----------------------------------------------------------
-  checkov-scan:
-    image: bridgecrew/checkov:3.2.57
-    container_name: devsecops-checkov
-    working_dir: /workspace
+  trivy-iac-scan:
+    image: aquasec/trivy:0.58.0
+    container_name: devsecops-trivy-iac
     volumes:
       - ./infra/terraform:/tf:ro
-      - ./reports:/reports
-    entrypoint: ["checkov"]
+      - ./reports:/output
     command:
-      - -d
-      - /tf
-      - --framework
-      - terraform
-      - --config-file
-      - /tf/.checkov.yaml
-      - --download-external-modules
-      - "false"
-      - --compact
-      - -o
+      - config
+      - --format
       - json
-      - --output-file-path
-      - /reports
+      - --output
+      - /output/iac-scan-report.json
+      - --severity
+      - CRITICAL,HIGH
+      - --exit-code
+      - "1"
+      - /tf
     networks:
       - scan-net
 
@@ -69,25 +64,25 @@ services:
         echo "╚══════════════════════════════════════════════╝"
         echo ""
 
-        echo "━━ [1/8] IaC: Checkov ━━"
-        docker compose -f docker-compose.security.yml up --abort-on-container-exit checkov-scan || true
+        echo "━━ [1/7] IaC: Trivy config ━━"
+        docker compose -f docker-compose.security.yml up --abort-on-container-exit trivy-iac-scan || true
 
-        echo "━━ [2/8] SAST: Gitleaks ━━"
+        echo "━━ [2/7] SAST: Gitleaks ━━"
         docker compose -f docker-compose.security.yml up --abort-on-container-exit gitleaks-scan || true
 
-        echo "━━ [3/8] SAST: Semgrep ━━"
+        echo "━━ [3/7] SAST: Semgrep ━━"
         docker compose -f docker-compose.security.yml up --abort-on-container-exit semgrep-scan || true
 
-        echo "━━ [4/8] Build & Install deps ━━"
+        echo "━━ [4/7] Build & Install deps ━━"
         docker compose -f docker-compose.security.yml up --abort-on-container-exit npm-build || true
 
-        echo "━━ [5/8] SCA: Trivy fs ━━"
+        echo "━━ [5/7] SCA: Trivy fs ━━"
         docker compose -f docker-compose.security.yml up --abort-on-container-exit dependency-scan || true
 
-        echo "━━ [6/8] Container Scan: Trivy ━━"
+        echo "━━ [6/7] Container Scan: Trivy ━━"
         docker compose -f docker-compose.security.yml up --abort-on-container-exit trivy-scan || true
 
-        echo "━━ [8/8] DAST: OWASP ZAP ━━"
+        echo "━━ [7/7] DAST: OWASP ZAP ━━"
         docker compose -f docker-compose.security.yml up --abort-on-container-exit zap-scan || true
 
         echo ""
