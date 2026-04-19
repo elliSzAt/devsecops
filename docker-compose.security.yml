@@ -27,13 +27,14 @@ services:
   # docker compose -f docker-compose.security.yml up trivy-iac-scan
   # ----------------------------------------------------------
   trivy-iac-scan:
-    image: aquasec/trivy:0.58.0
+    image: aquasec/trivy:0.62.1
     container_name: devsecops-trivy-iac
     volumes:
       - ./infra/terraform:/tf:ro
       - ./reports:/output
     command:
       - config
+      - --skip-policy-update
       - --format
       - json
       - --output
@@ -154,7 +155,7 @@ services:
   # Yêu cầu: chạy npm-build trước để có node_modules
   # ----------------------------------------------------------
   dependency-scan:
-    image: aquasec/trivy:0.58.0
+    image: aquasec/trivy:0.62.1
     container_name: devsecops-dependency-scan
     volumes:
       - ./app:/src:ro
@@ -162,6 +163,7 @@ services:
       - ./.trivyignore:/root/.trivyignore:ro
     command:
       - fs
+      - --skip-policy-update
       - --format
       - json
       - --output
@@ -185,13 +187,14 @@ services:
   # Yêu cầu: image devsecops-app:latest đã được build
   # ----------------------------------------------------------
   trivy-scan:
-    image: aquasec/trivy:0.58.0
+    image: aquasec/trivy:0.62.1
     container_name: devsecops-trivy
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./reports:/output
     command:
       - image
+      - --skip-policy-update
       - --format
       - json
       - --output

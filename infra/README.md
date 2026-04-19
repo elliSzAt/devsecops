@@ -29,8 +29,9 @@ mkdir -p reports
 docker run --rm \
   -v "$(pwd)/infra/terraform:/tf:ro" \
   -v "$(pwd)/reports:/output" \
-  aquasec/trivy:0.58.0 \
+  aquasec/trivy:0.62.1 \
   config \
+  --skip-policy-update \
   --format json \
   --output /output/iac-scan-report.json \
   --severity CRITICAL,HIGH \

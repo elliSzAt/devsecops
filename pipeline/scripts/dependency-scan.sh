@@ -8,7 +8,7 @@ echo "============================================"
 REPORT_DIR="${REPORT_DIR:-./reports}"
 WORKSPACE="${GITHUB_WORKSPACE:-.}"
 APP_DIR="${WORKSPACE}/app"
-TRIVY_VERSION="${TRIVY_VERSION:-0.58.0}"
+TRIVY_VERSION="${TRIVY_VERSION:-0.62.1}"
 
 mkdir -p "$REPORT_DIR"
 
@@ -26,6 +26,7 @@ run_with_docker() {
     -v "${WORKSPACE}/.trivyignore:/root/.trivyignore:ro" \
     aquasec/trivy:${TRIVY_VERSION} \
     fs \
+    --skip-policy-update \
     --format json \
     --output /output/dependency-scan-report.json \
     --severity CRITICAL,HIGH \
@@ -38,6 +39,7 @@ run_with_docker() {
 run_native() {
   echo "[SCA] Running Trivy fs native..."
   trivy fs \
+    --skip-policy-update \
     --format json \
     --output "${SCA_REPORT}" \
     --severity CRITICAL,HIGH \
