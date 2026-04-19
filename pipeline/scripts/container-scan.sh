@@ -37,7 +37,7 @@ run_trivy_docker() {
     -v "$(pwd)/trivy.yaml:/root/trivy.yaml:ro" \
     aquasec/trivy:0.62.1 \
     image \
-    --skip-policy-update \
+    --skip-check-update \
     --format json \
     --output "/output/container-scan-report.json" \
     --severity CRITICAL,HIGH \
@@ -50,7 +50,7 @@ run_trivy_docker() {
 
 run_trivy_native() {
   trivy image \
-    --skip-policy-update \
+    --skip-check-update \
     --format json \
     --output "${REPORT_DIR}/container-scan-report.json" \
     --severity CRITICAL,HIGH,MEDIUM \

@@ -20,8 +20,9 @@ env:
   # Pinned tool versions - tránh supply chain attack qua :latest
   GITLEAKS_VERSION: "v8.18.2"
   SEMGREP_VERSION: "1.90.0"
-  # 0.58.x + policy bundle tải OTA có thể lỗi Rego (specify_ami_owners); dùng bản mới + --skip-policy-update
+  # Trivy: vuln (fs/image) vs IaC (config) — phiên bản tách để pin độc lập
   TRIVY_VERSION: "0.62.1"
+  TRIVY_IAC_VERSION: "0.64.1"
   ZAP_VERSION: "2.16.0"
 
 jobs:
@@ -41,11 +42,11 @@ jobs:
       - name: Trivy - Terraform (misconfiguration)
         run: |
           docker run --rm \
+            -v trivy-iac-cache:/root/.cache/trivy \
             -v ${{ github.workspace }}/infra/terraform:/tf:ro \
             -v ${{ github.workspace }}/reports:/output \
-            aquasec/trivy:${{ env.TRIVY_VERSION }} \
+            aquasec/trivy:${{ env.TRIVY_IAC_VERSION }} \
             config \
-            --skip-policy-update \
             --format json \
             --output /output/iac-scan-report.json \
             --severity CRITICAL,HIGH \
@@ -190,7 +191,7 @@ jobs:
             -v ${{ github.workspace }}/.trivyignore:/root/.trivyignore:ro \
             aquasec/trivy:${{ env.TRIVY_VERSION }} \
             fs \
-            --skip-policy-update \
+            --skip-check-update \
             --format json \
             --output /output/dependency-scan-report.json \
             --severity CRITICAL,HIGH \
@@ -284,7 +285,7 @@ jobs:
             -v ${{ github.workspace }}/.trivyignore:/root/.trivyignore:ro \
             aquasec/trivy:${{ env.TRIVY_VERSION }} \
             image \
-            --skip-policy-update \
+            --skip-check-update \
             --format json \
             --output /output/container-scan-report.json \
             --severity CRITICAL,HIGH \

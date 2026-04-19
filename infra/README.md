@@ -18,20 +18,21 @@ terraform plan
 
 Cần AWS credentials (`aws configure` hoặc biến môi trường).
 
-## Scan IaC (Trivy config)
+## Scan IaC (Trivy config — phiên bản riêng)
 
-Cùng image `aquasec/trivy` với bước container/dependency scan — **không cần API key**.
+Pipeline dùng **`TRIVY_IAC_VERSION`** (khác `TRIVY_VERSION` cho fs/image) và **volume cache** `trivy-iac-cache` để policy misconfig không phải tải lại mỗi lần.
 
 Từ thư mục gốc repo:
 
 ```bash
 mkdir -p reports
+docker volume create devsecops-trivy-iac-cache 2>/dev/null || true
 docker run --rm \
+  -v devsecops-trivy-iac-cache:/root/.cache/trivy \
   -v "$(pwd)/infra/terraform:/tf:ro" \
   -v "$(pwd)/reports:/output" \
-  aquasec/trivy:0.62.1 \
+  aquasec/trivy:0.64.1 \
   config \
-  --skip-policy-update \
   --format json \
   --output /output/iac-scan-report.json \
   --severity CRITICAL,HIGH \
@@ -39,4 +40,6 @@ docker run --rm \
   /tf
 ```
 
-Pipeline CI chạy bước này tự động (job `iac-scan` đầu tiên). Phát hiện misconfiguration Terraform mức **Critical/High** sẽ **fail** job.
+**Không** dùng `--skip-check-update` cho bước `config`: flag đó khiến Trivy cần cache sẵn trong image; container sạch sẽ lỗi nếu không có policy đã tải.
+
+Pipeline CI chạy job `iac-scan` đầu tiên với cùng logic (volume Docker `trivy-iac-cache` trên self-hosted runner).

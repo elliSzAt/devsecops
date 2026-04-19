@@ -26,7 +26,7 @@ run_with_docker() {
     -v "${WORKSPACE}/.trivyignore:/root/.trivyignore:ro" \
     aquasec/trivy:${TRIVY_VERSION} \
     fs \
-    --skip-policy-update \
+    --skip-check-update \
     --format json \
     --output /output/dependency-scan-report.json \
     --severity CRITICAL,HIGH \
@@ -39,7 +39,7 @@ run_with_docker() {
 run_native() {
   echo "[SCA] Running Trivy fs native..."
   trivy fs \
-    --skip-policy-update \
+    --skip-check-update \
     --format json \
     --output "${SCA_REPORT}" \
     --severity CRITICAL,HIGH \
