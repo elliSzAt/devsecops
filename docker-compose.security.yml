@@ -13,6 +13,7 @@ version: "3.8"
 #   Chỉ SCA:              docker compose -f docker-compose.security.yml up dependency-scan
 #   Chỉ Container scan:   docker compose -f docker-compose.security.yml up trivy-scan
 #   Chỉ DAST:             docker compose -f docker-compose.security.yml up zap-scan
+#   Chỉ IaC (Checkov):    docker compose -f docker-compose.security.yml up checkov-scan
 #   Xem reports:          ls -la reports/
 #
 # Yêu cầu:
@@ -21,6 +22,35 @@ version: "3.8"
 # ============================================================
 
 services:
+  # ----------------------------------------------------------
+  # IaC: Checkov (Terraform trong infra/terraform)
+  # docker compose -f docker-compose.security.yml up checkov-scan
+  # ----------------------------------------------------------
+  checkov-scan:
+    image: bridgecrew/checkov:3.2.57
+    container_name: devsecops-checkov
+    working_dir: /workspace
+    volumes:
+      - ./infra/terraform:/tf:ro
+      - ./reports:/reports
+    entrypoint: ["checkov"]
+    command:
+      - -d
+      - /tf
+      - --framework
+      - terraform
+      - --config-file
+      - /tf/.checkov.yaml
+      - --download-external-modules
+      - "false"
+      - --compact
+      - -o
+      - json
+      - --output-file-path
+      - /reports
+    networks:
+      - scan-net
+
   # ----------------------------------------------------------
   # Full Pipeline Runner (chạy tuần tự tất cả stages)
   # ----------------------------------------------------------
@@ -39,22 +69,25 @@ services:
         echo "╚══════════════════════════════════════════════╝"
         echo ""
 
-        echo "━━ [1/6] SAST: Gitleaks ━━"
+        echo "━━ [1/8] IaC: Checkov ━━"
+        docker compose -f docker-compose.security.yml up --abort-on-container-exit checkov-scan || true
+
+        echo "━━ [2/8] SAST: Gitleaks ━━"
         docker compose -f docker-compose.security.yml up --abort-on-container-exit gitleaks-scan || true
 
-        echo "━━ [2/6] SAST: Semgrep ━━"
+        echo "━━ [3/8] SAST: Semgrep ━━"
         docker compose -f docker-compose.security.yml up --abort-on-container-exit semgrep-scan || true
 
-        echo "━━ [3/6] Build & Install deps ━━"
+        echo "━━ [4/8] Build & Install deps ━━"
         docker compose -f docker-compose.security.yml up --abort-on-container-exit npm-build || true
 
-        echo "━━ [4/6] SCA: Dependency-Check ━━"
+        echo "━━ [5/8] SCA: Trivy fs ━━"
         docker compose -f docker-compose.security.yml up --abort-on-container-exit dependency-scan || true
 
-        echo "━━ [5/6] Container Scan: Trivy ━━"
+        echo "━━ [6/8] Container Scan: Trivy ━━"
         docker compose -f docker-compose.security.yml up --abort-on-container-exit trivy-scan || true
 
-        echo "━━ [6/6] DAST: OWASP ZAP ━━"
+        echo "━━ [8/8] DAST: OWASP ZAP ━━"
         docker compose -f docker-compose.security.yml up --abort-on-container-exit zap-scan || true
 
         echo ""
