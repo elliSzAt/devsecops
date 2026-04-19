@@ -1,0 +1,5 @@
+# Trivy IaC: severity. Ngoại lệ CVE/AVD dùng file `.trivyignore` ở root repo.
+misconfiguration:
+  severity:
+    - CRITICAL
+    - HIGH

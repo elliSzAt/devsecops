@@ -22,7 +22,7 @@ env:
   SEMGREP_VERSION: "1.90.0"
   # Trivy: vuln (fs/image) vs IaC (config) — phiên bản tách để pin độc lập
   TRIVY_VERSION: "0.62.1"
-  TRIVY_IAC_VERSION: "0.64.1"
+  TRIVY_IAC_VERSION: "0.70.0"
   ZAP_VERSION: "2.16.0"
 
 jobs:
@@ -45,8 +45,12 @@ jobs:
             -v trivy-iac-cache:/root/.cache/trivy \
             -v ${{ github.workspace }}/infra/terraform:/tf:ro \
             -v ${{ github.workspace }}/reports:/output \
+            -v ${{ github.workspace }}/.trivyignore:/root/.trivyignore:ro \
             aquasec/trivy:${{ env.TRIVY_IAC_VERSION }} \
             config \
+            --config /tf/trivy.yaml \
+            --ignorefile /root/.trivyignore \
+            --skip-version-check \
             --format json \
             --output /output/iac-scan-report.json \
             --severity CRITICAL,HIGH \

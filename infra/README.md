@@ -31,8 +31,12 @@ docker run --rm \
   -v devsecops-trivy-iac-cache:/root/.cache/trivy \
   -v "$(pwd)/infra/terraform:/tf:ro" \
   -v "$(pwd)/reports:/output" \
-  aquasec/trivy:0.64.1 \
+  -v "$(pwd)/.trivyignore:/root/.trivyignore:ro" \
+  aquasec/trivy:0.70.0 \
   config \
+  --config /tf/trivy.yaml \
+  --ignorefile /root/.trivyignore \
+  --skip-version-check \
   --format json \
   --output /output/iac-scan-report.json \
   --severity CRITICAL,HIGH \
@@ -40,6 +44,8 @@ docker run --rm \
   /tf
 ```
 
-**Không** dùng `--skip-check-update` cho bước `config`: flag đó khiến Trivy cần cache sẵn trong image; container sạch sẽ lỗi nếu không có policy đã tải.
+- **`TRIVY_IAC_VERSION`** (workflow) dùng image **0.70.0** cho IaC, khác **`TRIVY_VERSION`** (fs/image).
+- **`--exit-code 1`**: job fail nếu còn finding CRITICAL/HIGH sau khi áp dụng `trivy.yaml` + `.trivyignore`.
+- **KMS + SSE-KMS** trên S3 xử lý AVD-AWS-0132; các ID demo trong `.trivyignore` cần rà lại trước production.
 
 Pipeline CI chạy job `iac-scan` đầu tiên với cùng logic (volume Docker `trivy-iac-cache` trên self-hosted runner).

@@ -27,14 +27,20 @@ services:
   # docker compose -f docker-compose.security.yml up trivy-iac-scan
   # ----------------------------------------------------------
   trivy-iac-scan:
-    image: aquasec/trivy:0.64.1
+    image: aquasec/trivy:0.70.0
     container_name: devsecops-trivy-iac
     volumes:
       - trivy-iac-cache:/root/.cache/trivy
       - ./infra/terraform:/tf:ro
       - ./reports:/output
+      - ./.trivyignore:/root/.trivyignore:ro
     command:
       - config
+      - --config
+      - /tf/trivy.yaml
+      - --ignorefile
+      - /root/.trivyignore
+      - --skip-version-check
       - --format
       - json
       - --output

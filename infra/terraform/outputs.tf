@@ -17,3 +17,8 @@ output "app_assets_bucket_name" {
   description = "S3 bucket for application static assets / artifacts"
   value       = aws_s3_bucket.app_assets.id
 }
+
+output "s3_kms_key_arn" {
+  description = "KMS key used for S3 SSE"
+  value       = aws_kms_key.s3_app_assets.arn
+}
