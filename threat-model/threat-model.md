@@ -104,20 +104,20 @@ Web App → API Gateway → Backend Services → Database + External Payment Ser
 
 ```
 ┌─────────────────────┐     ┌──────────────────────┐     ┌─────────────────────┐
-│     THREAT           │     │   DESIGN CONTROL      │     │   CI/CD CHECK        │
-├─────────────────────┤     ├──────────────────────┤     ├─────────────────────┤
+│     THREAT          │     │   DESIGN CONTROL     │     │   CI/CD CHECK       │
+├─────────────────────┤      ├──────────────────────┤       ├─────────────────────┤
 │ JWT Manipulation     │────▶│ Strong secret mgmt    │────▶│ SAST: hardcoded-     │
-│                      │     │ Algorithm pinning     │     │   secret             │
-│                      │     │ Short token expiry    │     │ SAST: jwt-no-expiry  │
-│                      │     │ Token revocation      │     │ SCA: jwt lib CVEs    │
-├─────────────────────┤     ├──────────────────────┤     ├─────────────────────┤
-│ SQL Injection        │────▶│ Parameterized queries │────▶│ SAST: sql-injection  │
-│                      │     │ Input validation      │     │ DAST: injection test │
-│                      │     │ Least-privilege DB    │     │ IaC: DB config check │
-├─────────────────────┤     ├──────────────────────┤     ├─────────────────────┤
-│ Payment SSRF/MITM    │────▶│ URL allowlist         │────▶│ SAST: ssrf check     │
-│                      │     │ mTLS for payments     │     │ Container: network   │
-│                      │     │ Webhook HMAC verify   │     │ IaC: TLS config      │
-│                      │     │ Idempotency keys      │     │                      │
-└─────────────────────┘     └──────────────────────┘     └─────────────────────┘
+│                      │      │ Algorithm pinning     │     │   secret             │
+│                      │      │ Short token expiry    │     │ SAST: jwt-no-expiry  │
+│                      │      │ Token revocation      │     │ SCA: jwt lib CVEs    │
+├─────────────────────┤      ├──────────────────────┤      ├─────────────────────┤
+│ SQL Injection        │────▶│ Parameterized queries│────▶│ SAST: sql-injection │
+│                      │     │ Input validation      │     │ DAST: injection test│
+│                      │     │ Least-privilege DB    │     │ IaC: DB config check│
+├─────────────────────┤      ├──────────────────────┤     ├─────────────────────┤
+│ Payment SSRF/MITM   │────▶│ URL allowlist        │────▶│ SAST: ssrf check    │
+│                     │     │ mTLS for payments     │     │ Container: network  │
+│                     │     │ Webhook HMAC verify   │     │ IaC: TLS config     │
+│                     │     │ Idempotency keys      │     │                     │
+└─────────────────────┘     └───────────────────────┘     └─────────────────────┘
 ```

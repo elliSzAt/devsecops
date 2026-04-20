@@ -73,7 +73,7 @@ rules:
   - id: jwt-no-expiry
     patterns:
       - pattern: jwt.sign($PAYLOAD, $SECRET)
-      - pattern-not: jwt.sign($PAYLOAD, $SECRET, { expiresIn: ... })
+      - pattern-not: "jwt.sign($PAYLOAD, $SECRET, { expiresIn: ... })"
     message: "JWT token created without expiration. Set expiresIn to limit token lifetime."
     languages: [javascript]
     severity: WARNING
