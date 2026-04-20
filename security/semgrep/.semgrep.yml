@@ -14,7 +14,17 @@ rules:
 
   - id: sql-injection-raw-query
     patterns:
-      - pattern: sequelize.query(`...${$VAR}...`, ...)
+      # Match Sequelize raw query built from a template literal containing interpolation
+      - pattern: sequelize.query(`...${$TAINT}...`, ...)
+      # Prefer to flag when interpolation comes from request input
+      - pattern-inside: |
+          ...
+          $TAINT = req.query.$P;
+          ...
+      - pattern-inside: |
+          ...
+          $TAINT = req.body.$P;
+          ...
     message: "Potential SQL injection via string interpolation in raw query. Use parameterized queries."
     languages: [javascript]
     severity: ERROR
@@ -24,8 +34,17 @@ rules:
 
   - id: command-injection
     patterns:
-      - pattern: exec(`... ${$INPUT} ...`, ...)
-    message: "Potential command injection. User input '$INPUT' is passed directly to exec()."
+      # child_process.exec with interpolated input
+      - pattern: exec(`...${$TAINT}...`, ...)
+      - pattern-inside: |
+          ...
+          $TAINT = req.query.$P;
+          ...
+      - pattern-inside: |
+          ...
+          $TAINT = req.body.$P;
+          ...
+    message: "Potential command injection. User input '$TAINT' is passed directly to exec()."
     languages: [javascript]
     severity: ERROR
     metadata:
@@ -74,10 +93,13 @@ rules:
 
   - id: ssrf-vulnerability
     patterns:
-      - pattern: |
-          const $URL = req.query.$PARAM;
+      # SSRF: user-controlled URL passed to fetch()
+      - pattern-inside: |
           ...
-          fetch($URL)
+          $URL = req.query.$PARAM;
+          ...
+      - pattern: fetch($URL, ...)
+      - pattern: fetch($URL)
     message: "Potential SSRF: user-controlled URL passed directly to fetch()."
     languages: [javascript]
     severity: ERROR
