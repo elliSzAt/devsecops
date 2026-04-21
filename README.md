@@ -1,84 +1,115 @@
 # DevSecOps Pipeline - Case Study
 
-A complete DevSecOps pipeline demonstration featuring CI/CD security integration with SAST, SCA, container scanning, IaC scanning, and policy enforcement.
+Demo repo xây dựng **DevSecOps pipeline** theo mô hình: **IaC scan → SAST → Build/Test + SCA → Build image → Container scan → Push → Deploy → DAST → (DAST fail) Rollback**.
+
+- **CI/CD chính**: GitHub Actions (`.github/workflows/devsecops.yml`) chạy trên **self-hosted runner**.
+- **Chạy local để demo/test tools**: `docker-compose.security.yml` (scan) + `docker-compose.yml` (deploy app + dashboard).
 
 ## Quick Start
 
-```bash
-# Run the full pipeline
-docker compose up pipeline-runner --build
+### Chạy app + dashboard local
 
-# Or use Makefile
-make pipeline
+```bash
+docker compose up -d app dashboard --build
+# App:       http://localhost:3000
+# Dashboard: http://localhost:8080
 ```
+
+### Chạy full security pipeline local (demo)
+
+```bash
+docker compose -f docker-compose.security.yml up --abort-on-container-exit pipeline-runner
+```
+
+### Chạy pipeline CI/CD (GitHub Actions)
+
+Pipeline tự chạy khi `push` vào `main`/`develop` hoặc tạo `pull_request` vào `main`.
 
 ## Architecture
 
 ```
-┌─────────┐   ┌──────┐   ┌──────────────────────────────────┐   ┌────────┐   ┌────────┐
-│  BUILD   │──▶│ TEST │──▶│  SECURITY (parallel)             │──▶│ POLICY │──▶│ DEPLOY │
-│ npm ci   │   │ jest │   │  SAST │ SCA │ Container │ IaC    │   │  GATE  │   │ (mock) │
-└─────────┘   └──────┘   └──────────────────────────────────┘   └────────┘   └────────┘
+┌─────────┐  ┌────────┐  ┌──────────────┐  ┌──────────────────┐  ┌───────────┐  ┌────────┐  ┌──────────┐  ┌──────────┐
+│ IaC     │→ │ SAST   │→ │ Build & Test │→ │ SCA (deps)       │→ │ Build IMG │→ │ Scan   │→ │ Push IMG │→ │ Deploy   │
+│ Trivy   │  │ GL+SG  │  │ npm ci/jest  │  │ Trivy fs         │  │ Docker    │  │ Trivy  │  │ GHCR     │  │ Compose  │
+└─────────┘  └────────┘  └──────────────┘  └──────────────────┘  └───────────┘  └────────┘  └──────────┘  └──────────┘
+                                                                                                                      │
+                                                                                                                      v
+                                                                                                               ┌──────────┐
+                                                                                                               │ DAST     │
+                                                                                                               │ ZAP      │
+                                                                                                               └──────────┘
+                                                                                                                      │
+                                                                                                    (High found) ──────┘
+                                                                                                                      v
+                                                                                                               ┌──────────┐
+                                                                                                               │ Rollback │
+                                                                                                               └──────────┘
 ```
 
 ## Project Structure
 
 ```
-├── app/                          # Vulnerable Node.js application
-│   ├── src/                      # Application source code
-│   ├── tests/                    # Unit tests
-│   ├── Dockerfile                # Container (with intentional issues)
-│   └── Dockerfile.secure         # Hardened container
-├── pipeline/
-│   ├── scripts/                  # Pipeline stage scripts
-│   │   ├── run-pipeline.sh       # Full pipeline orchestrator
-│   │   ├── sast-scan.sh          # Semgrep SAST
-│   │   ├── sca-scan.sh           # Trivy SCA
-│   │   ├── container-scan.sh     # Trivy container
-│   │   ├── iac-scan.sh           # Trivy IaC
-│   │   ├── policy-check.sh       # Policy enforcement
-│   │   └── pipeline-security-check.sh  # Pipeline security audit
-│   └── policies/
-│       └── security-policy.json  # Security gate policy
-├── security/
-│   └── semgrep/.semgrep.yml      # Custom SAST rules
-├── reports/                      # Scan output (generated)
-├── dashboard/                    # Security dashboard (HTML)
-├── threat-model/                 # DFD + threat analysis
-├── .gitlab-ci.yml                # GitLab CI pipeline config
-├── docker-compose.yml            # Orchestration
-└── Makefile                      # Convenience commands
+├── .github/workflows/devsecops.yml     # GitHub Actions pipeline (self-hosted runner)
+├── app/                               # Node.js/Express demo app
+│   ├── src/
+│   ├── tests/
+│   ├── Dockerfile                     # Image build (Alpine base)
+│   └── Dockerfile.secure              # Bản hardening tham khảo
+├── infra/terraform/                   # IaC (Terraform AWS) + Trivy config
+│   └── trivy.yaml
+├── pipeline/scripts/                  # Helper scripts (scan/deploy/rollback)
+├── security/semgrep/.semgrep.yml      # Custom Semgrep rules
+├── docker-compose.yml                 # Deploy app + dashboard local
+├── docker-compose.security.yml        # Run scanners local (demo)
+├── .pre-commit-config.yaml            # Local secret scanning + basic checks
+├── .trivyignore                       # Trivy ignore (CVE/GHSA + IaC misconfig IDs)
+├── dashboard/                         # HTML dashboard (static)
+├── threat-model/                      # Threat model notes
+└── DevSecOps_CaseStudy_Report.md      # Report (tài liệu chấm điểm)
 ```
 
-## Available Commands
+## Local Commands (Docker Compose)
 
-| Command | Description |
-|---------|-------------|
-| `make pipeline` | Run full pipeline |
-| `make sast` | SAST scan only |
-| `make sca` | SCA scan only |
-| `make container-scan` | Container scan only |
-| `make iac-scan` | IaC scan only |
-| `make scan` | All scans in parallel |
-| `make policy` | Policy enforcement |
-| `make dashboard` | Start dashboard at :8080 |
-| `make app` | Start app at :3000 |
-| `make pipeline-security` | Audit pipeline security |
-| `make clean` | Clean up |
+```bash
+# App + dashboard
+docker compose up -d app dashboard --build
+
+# Full security run (local demo)
+docker compose -f docker-compose.security.yml up --abort-on-container-exit pipeline-runner
+
+# Individual stages (local demo)
+docker compose -f docker-compose.security.yml up --abort-on-container-exit trivy-iac-scan
+docker compose -f docker-compose.security.yml up --abort-on-container-exit gitleaks-scan
+docker compose -f docker-compose.security.yml up --abort-on-container-exit semgrep-scan
+docker compose -f docker-compose.security.yml up --abort-on-container-exit dependency-scan
+docker compose -f docker-compose.security.yml up --abort-on-container-exit trivy-scan
+docker compose -f docker-compose.security.yml up --abort-on-container-exit zap-scan
+```
 
 ## Security Tools
 
-| Tool | Purpose | Stage |
-|------|---------|-------|
-| **Semgrep** | SAST - Static code analysis | Security |
-| **Trivy** | SCA, Container, IaC scanning | Security |
-| **Custom Policy Engine** | Enforce pass/fail criteria | Policy Gate |
+| Tool | Purpose | Where it runs |
+|------|---------|---------------|
+| **Gitleaks** | Secrets scanning | Pre-commit + CI job (SAST) |
+| **Semgrep** | SAST (custom + `p/ci`) | CI job (SAST) |
+| **Trivy fs** | SCA (dependencies) | CI job (Build/Test & Dependency Scan) |
+| **Trivy image** | Container vuln scan | CI job (Container Scan) |
+| **Trivy config** | IaC misconfiguration scan (Terraform) | CI job (IaC Scan) |
+| **OWASP ZAP** | DAST baseline scan | CI job (DAST) |
 
 ## Reports
 
-After running the pipeline, reports are saved to `reports/`:
-- `sast-report.json` - SAST findings
-- `sca-report.json` - Dependency vulnerabilities
-- `container-scan-report.json` - Container image issues
-- `iac-scan-report.json` - Infrastructure misconfigs
-- `policy-report.json` - Aggregated policy decision
+### GitHub Actions artifacts
+
+Trong mỗi run của GitHub Actions, bạn có thể tải artifacts để xem findings chi tiết:
+
+- `iac-scan-report.json`
+- `gitleaks-report.json`
+- `sast-report.json` (Semgrep)
+- `dependency-scan-report.json` (Trivy fs)
+- `container-scan-report.json` (Trivy image)
+- `dast-report.json` + `dast-report.html` (ZAP)
+
+### Local output
+
+Khi chạy `docker-compose.security.yml`, output được ghi vào `./reports/` tương tự.

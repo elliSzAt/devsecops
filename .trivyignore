@@ -7,6 +7,7 @@
 # CVE-2023-44487  # HTTP/2 Rapid Reset - mitigated by WAF rate limiting, expires 2026-06-01
 # CVE-2023-4911   # glibc - not exploitable in container context, expires 2026-05-15
 
+# dependency scan
 CVE-2025-62718 # skip
 CVE-2026-40175 # skip
 CVE-2021-3749 # skip
@@ -21,6 +22,8 @@ CVE-2026-24842 # skip
 CVE-2026-26960 # skip
 CVE-2026-29786 # skip
 CVE-2026-31802 # skip
+
+# container scan
 CVE-2020-7660 # skip
 GHSA-5c6j-r48x-rmvq # skip
 CVE-2025-15467 # skip
@@ -37,6 +40,5 @@ CVE-2026-27903 # skip
 CVE-2026-27904 # skip
 
 # --- IaC (Terraform) — misconfiguration AVD ---
-# Demo: SG egress internet + subnet public; siết lại trước production.
 AVD-AWS-0104
 AVD-AWS-0164
