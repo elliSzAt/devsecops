@@ -39,7 +39,7 @@ Pipeline tự chạy khi `push` vào `main`/`develop` hoặc tạo `pull_request
                                                                                                                │ ZAP      │
                                                                                                                └──────────┘
                                                                                                                       │
-                                                                                                    (High found) ──────┘
+                                                                                                                      │
                                                                                                                       v
                                                                                                                ┌──────────┐
                                                                                                                │ Rollback │
